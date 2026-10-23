@@ -22,6 +22,7 @@ namespace DLS.Game
 		public static bool OrganizeAllShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.T);
 		public static bool TruthTableShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.Y);
 		public static bool TestBenchShortcutTriggered => CtrlShortcutTriggered(KeyCode.B);
+		public static bool ExpressionShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.G);
 
 
 		// ---- Misc shortcuts ----

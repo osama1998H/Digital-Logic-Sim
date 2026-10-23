@@ -30,6 +30,7 @@ namespace DLS.Graphics
 			"STATISTICS",
 			$"TRUTH TABLE  {shortcutTextCol}Ctrl+Shift+Y",
 			$"TEST BENCH   {shortcutTextCol}Ctrl+B",
+			$"FROM EXPRESSION {shortcutTextCol}Ctrl+Shift+G",
 			$"LIBRARY      {shortcutTextCol}Ctrl+L",
 			$"PREFS        {shortcutTextCol}Ctrl+P",
 			$"QUIT         {shortcutTextCol}Ctrl+Q"
@@ -43,9 +44,10 @@ namespace DLS.Graphics
 		const int StatisticsButtonIndex = 5;
 		const int TruthTableButtonIndex = 6;
 		const int TestBenchButtonIndex = 7;
-		const int LibraryButtonIndex = 8;
-		const int OptionsButtonIndex = 9;
-		const int QuitButtonIndex = 10;
+		const int ExpressionButtonIndex = 8;
+		const int LibraryButtonIndex = 9;
+		const int OptionsButtonIndex = 10;
+		const int QuitButtonIndex = 11;
 
 		// ---- State ----
 		static float scrollX;
@@ -133,6 +135,7 @@ namespace DLS.Graphics
 				else if (i == StatisticsButtonIndex) OpenStatsMenu();
 				else if (i == TruthTableButtonIndex) OpenTruthTable();
 				else if (i == TestBenchButtonIndex) OpenTestBench();
+				else if (i == ExpressionButtonIndex) ExpressionMenu.Open();
 				else if (i == LibraryButtonIndex) OpenLibraryMenu();
 				else if (i == OptionsButtonIndex) OpenPreferencesMenu();
 				else if (i == QuitButtonIndex) ExitToMainMenu();
@@ -442,6 +445,7 @@ namespace DLS.Graphics
 				if (KeyboardShortcuts.OrganizeAllShortcutTriggered) ChipOrganizer.OrganizeAll(Project.ActiveProject.ViewedChip);
 				if (KeyboardShortcuts.TruthTableShortcutTriggered) OpenTruthTable();
 				if (KeyboardShortcuts.TestBenchShortcutTriggered) OpenTestBench();
+				if (KeyboardShortcuts.ExpressionShortcutTriggered) ExpressionMenu.Open();
 			}
 
 			if (KeyboardShortcuts.PreferencesShortcutTriggered) OpenPreferencesMenu();
