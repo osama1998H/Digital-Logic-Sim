@@ -270,6 +270,54 @@ namespace DLS.Game
 			return anyFailed;
 		}
 
+		// Swap existing subchips (identified by the IDs of the given descriptions) for new ones, and replace the wire state.
+		// The new wires may only differ from the current wires in the pins of the replaced subchips that they connect to.
+		public void ReplaceSubChips(SubChipDescription[] newSubChipDescriptions, WireDescription[] newWires)
+		{
+			HashSet<int> replacedIDs = newSubChipDescriptions.Select(d => d.ID).ToHashSet();
+			ChipLibrary library = Project.ActiveProject.chipLibrary;
+
+			// Disconnect the old subchips in the simulation
+			foreach (WireInstance wire in Wires)
+			{
+				if (hasSimChip && TouchesAny(wire.SourcePin.Address, wire.TargetPin.Address))
+				{
+					Simulator.RemoveConnection(SimChip, wire.SourcePin.Address, wire.TargetPin.Address);
+				}
+			}
+
+			// Swap subchips (keeping their place in the element list so the drawing order stays the same)
+			foreach (SubChipDescription subChipDesc in newSubChipDescriptions)
+			{
+				int index = Elements.FindIndex(e => e is SubChipInstance && e.ID == subChipDesc.ID);
+				if (index == -1) throw new Exception("Subchip to replace not found");
+
+				ChipDescription fullDescription = library.GetChipDescription(subChipDesc.Name);
+				SubChipInstance newSubChip = new(fullDescription, subChipDesc);
+				Elements[index] = newSubChip;
+				elementsModifiedSinceLastArrayUpdate = true;
+
+				if (hasSimChip)
+				{
+					Simulator.RemoveSubChip(SimChip, subChipDesc.ID);
+					Simulator.AddSubChip(SimChip, fullDescription, library, subChipDesc.ID, newSubChip.InternalData);
+				}
+			}
+
+			if (ReplaceAllWires(newWires)) throw new Exception("Failed to load wire when replacing subchips");
+
+			// Reconnect in the simulation
+			foreach (WireInstance wire in Wires)
+			{
+				if (hasSimChip && TouchesAny(wire.SourcePin.Address, wire.TargetPin.Address))
+				{
+					Simulator.AddConnection(SimChip, wire.SourcePin.Address, wire.TargetPin.Address);
+				}
+			}
+
+			bool TouchesAny(PinAddress a, PinAddress b) => replacedIDs.Contains(a.PinOwnerID) || replacedIDs.Contains(b.PinOwnerID);
+		}
+
 		void AddElement(IMoveable element)
 		{
 			Elements.Add(element);

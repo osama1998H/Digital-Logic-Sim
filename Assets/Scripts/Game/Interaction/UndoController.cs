@@ -126,6 +126,19 @@ namespace DLS.Game
 			RecordUndoAction(action);
 		}
 
+		public void RecordReplaceSubChips(SubChipDescription[] subChipsBefore, SubChipDescription[] subChipsAfter, WireDescription[] wiresBefore, WireDescription[] wiresAfter)
+		{
+			ReplaceSubChipsUndoAction action = new()
+			{
+				subChipsBefore = subChipsBefore,
+				subChipsAfter = subChipsAfter,
+				wiresBefore = wiresBefore,
+				wiresAfter = wiresAfter
+			};
+
+			RecordUndoAction(action);
+		}
+
 		public void RecordDeleteElements(List<IMoveable> deletedElements)
 		{
 			bool hasConnectedWires = true; // Todo: test if true so don't backup wire state unnecessarily
@@ -230,6 +243,10 @@ namespace DLS.Game
 				{
 					rename.Trigger(undo, devChip);
 				}
+				else if (action is ReplaceSubChipsUndoAction replace)
+				{
+					replace.Trigger(undo, devChip);
+				}
 			}
 			catch (Exception e)
 			{
@@ -302,6 +319,25 @@ namespace DLS.Game
 					if (element is DevPinInstance devPin) devPin.Pin.Name = name;
 					else if (element is SubChipInstance subChip) subChip.Label = name;
 					Project.ActiveProject.controller.Select(element, true);
+				}
+			}
+		}
+
+		class ReplaceSubChipsUndoAction : UndoAction
+		{
+			public SubChipDescription[] subChipsBefore;
+			public SubChipDescription[] subChipsAfter;
+			public WireDescription[] wiresBefore;
+			public WireDescription[] wiresAfter;
+
+			public void Trigger(bool undo, DevChipInstance devChip)
+			{
+				SubChipDescription[] subChips = undo ? subChipsBefore : subChipsAfter;
+				devChip.ReplaceSubChips(subChips, undo ? wiresBefore : wiresAfter);
+
+				foreach (SubChipDescription subChip in subChips)
+				{
+					Project.ActiveProject.controller.Select(devChip.Elements.First(e => e.ID == subChip.ID), true);
 				}
 			}
 		}

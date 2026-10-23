@@ -34,18 +34,31 @@ namespace DLS.Graphics
 		static readonly MenuEntry deleteEntry = new(Format("DELETE"), Delete, CanDelete);
 		static readonly MenuEntry openChipEntry = new(Format("OPEN"), OpenChip, CanOpenChip);
 		static readonly MenuEntry labelChipEntry = new(Format("LABEL"), OpenChipLabelPopup, CanLabelChip);
+		static readonly MenuEntry replaceChipEntry = new(Format("REPLACE..."), OpenReplaceMenu, CanReplaceChip);
+		static readonly MenuEntry replaceAllChipsEntry = new(Format("REPLACE ALL..."), OpenReplaceAllMenu, CanReplaceChip);
+		static readonly MenuEntry selectSameEntry = new(Format("SELECT SAME"), SelectSameType, CanEditCurrentChip);
 
 		static readonly MenuEntry[] entries_customSubchip =
 		{
 			new(Format("VIEW"), EnterViewMode, CanEnterViewMode),
 			openChipEntry,
 			labelChipEntry,
+			dividerMenuEntry,
+			replaceChipEntry,
+			replaceAllChipsEntry,
+			selectSameEntry,
+			dividerMenuEntry,
 			deleteEntry
 		};
 
 		static readonly MenuEntry[] entries_builtinSubchip =
 		{
 			labelChipEntry,
+			dividerMenuEntry,
+			replaceChipEntry,
+			replaceAllChipsEntry,
+			selectSameEntry,
+			dividerMenuEntry,
 			deleteEntry
 		};
 
@@ -115,6 +128,7 @@ namespace DLS.Graphics
 		static readonly MenuEntry[] entries_multiSubchips =
 		{
 			new(Format("LABEL..."), OpenBatchRenameMenu, CanEditCurrentChip),
+			new(Format("REPLACE..."), OpenReplaceSelectionMenu, CanReplaceSelection),
 			arrangeEntry,
 			deleteSelectionEntry
 		};
@@ -307,6 +321,46 @@ namespace DLS.Graphics
 			List<IMoveable> selection = Project.ActiveProject.controller.SelectedElements;
 			BatchRenameMenu.SetTargets(selection, selection[0] is DevPinInstance);
 			UIDrawer.SetActiveMenu(UIDrawer.MenuType.BatchRename);
+		}
+
+		static bool CanReplaceChip() => interactionContext is SubChipInstance subChip && SubChipReplacer.CanReplace(subChip);
+
+		static void OpenReplaceMenu()
+		{
+			ReplaceChipPopup.SetTargets(new[] { (SubChipInstance)interactionContext });
+			UIDrawer.SetActiveMenu(UIDrawer.MenuType.ReplaceChip);
+		}
+
+		static void OpenReplaceAllMenu()
+		{
+			SubChipInstance subChip = (SubChipInstance)interactionContext;
+			ReplaceChipPopup.SetTargets(SubChipReplacer.SubChipsOfType(Project.ActiveProject.ViewedChip, subChip.Description.Name));
+			UIDrawer.SetActiveMenu(UIDrawer.MenuType.ReplaceChip);
+		}
+
+		// Selected subchips can be replaced together if they're all of the same (replaceable) type
+		static bool CanReplaceSelection()
+		{
+			List<IMoveable> selection = Project.ActiveProject.controller.SelectedElements;
+			if (selection.Count == 0 || selection[0] is not SubChipInstance first) return false;
+			return selection.All(e => e is SubChipInstance s && s.Description.NameMatch(first.Description.Name) && SubChipReplacer.CanReplace(s));
+		}
+
+		static void OpenReplaceSelectionMenu()
+		{
+			ReplaceChipPopup.SetTargets(Project.ActiveProject.controller.SelectedElements.OfType<SubChipInstance>());
+			UIDrawer.SetActiveMenu(UIDrawer.MenuType.ReplaceChip);
+		}
+
+		// Select all subchips of the same type as the one that was clicked on
+		static void SelectSameType()
+		{
+			SubChipInstance subChip = (SubChipInstance)interactionContext;
+			ChipInteractionController controller = Project.ActiveProject.controller;
+			foreach (SubChipInstance other in SubChipReplacer.SubChipsOfType(Project.ActiveProject.ViewedChip, subChip.Description.Name))
+			{
+				if (!other.IsSelected) controller.Select(other, true);
+			}
 		}
 
 		static void DeleteSelection()
