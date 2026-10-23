@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DLS.Description;
+using DLS.Game.Editing;
 using UnityEngine;
 using static DLS.Graphics.DrawSettings;
 
@@ -202,13 +203,13 @@ namespace DLS.Game
 
 			for (int i = 0; i < numIn; i++)
 			{
-				string pinName = GetPinName(i, numIn, true);
+				string pinName = BitPinNames.ForConversionChip(true, i, numIn, (int)bitCountIn);
 				inputPins[i] = CreatePinDescription(pinName, i, bitCountIn);
 			}
 
 			for (int i = 0; i < numOut; i++)
 			{
-				string pinName = GetPinName(i, numOut, false);
+				string pinName = BitPinNames.ForConversionChip(false, i, numOut, (int)bitCountOut);
 				outputPins[i] = CreatePinDescription(pinName, numIn + i, bitCountOut);
 			}
 
@@ -216,13 +217,6 @@ namespace DLS.Game
 			Vector2 size = new(GridSize * 9, height);
 
 			return CreateBuiltinChipDescription(chipType, size, ChipCol_SplitMerge, inputPins, outputPins);
-		}
-
-		static string GetPinName(int pinIndex, int pinCount, bool isInput)
-		{
-			string letter = " " + (char)('A' + pinCount - pinIndex - 1);
-			if (pinCount == 1) letter = "";
-			return (isInput ? "IN" : "OUT") + letter;
 		}
 
 		static ChipDescription CreateDisplay7Seg()
