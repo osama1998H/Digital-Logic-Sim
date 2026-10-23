@@ -105,8 +105,8 @@ namespace DLS.Game.Layout
 				colWidth[l] = Math.Max(colWidth[l], nodes[id].BoxWidth);
 			}
 
-			float[] gapAfter = new float[maxLayer + 1]; // gapAfter[k] = gap between column k and k+1 (k = 0: input pins)
-			for (int k = 0; k < maxLayer; k++)
+			float[] gapAfter = new float[Math.Max(maxLayer, 1) + 1]; // gapAfter[k] = gap between column k and k+1 (k = 0: input pins)
+			for (int k = 0; k < Math.Max(maxLayer, 1); k++)
 			{
 				int spanning = 0;
 				foreach ((int from, int to) e in edges)
@@ -168,7 +168,7 @@ namespace DLS.Game.Layout
 					PlaceNode n = nodes[order[i].id];
 					float posX = SnapAxis(centreX - n.BoxOffset.X + n.SnapOffset.X, grid) - n.SnapOffset.X;
 					float posY = SnapAxis(centreY[i] + shift - n.BoxOffset.Y + n.SnapOffset.Y, grid) - n.SnapOffset.Y;
-					while (i > 0 && posY + n.BoxOffset.Y + n.BoxHeight / 2 > prevBottom - 2 * grid + EdgeEps) posY -= grid;
+					while (i > 0 && posY + n.BoxOffset.Y + n.BoxHeight / 2 > prevBottom - 3 * grid + EdgeEps) posY -= grid;
 					prevBottom = posY + n.BoxOffset.Y - n.BoxHeight / 2;
 					result[n.ID] = new LayoutPoint(posX, posY);
 					rightmost = Math.Max(rightmost, CentreX(n, posX) + n.BoxWidth / 2);
@@ -200,7 +200,7 @@ namespace DLS.Game.Layout
 					x += n.BoxWidth + 3 * grid;
 					all = Math.Max(all, CentreX(n, posX) + n.BoxWidth / 2);
 				}
-				if (!anyLayered) rightmost = all;
+				rightmost = all;
 			}
 
 			// Output pins: one shared horizontal translation

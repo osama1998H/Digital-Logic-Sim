@@ -168,5 +168,177 @@ namespace LayoutTests
 			float lowestConnected = Math.Min(Box(Find(input, 2), result[2]).minY, Box(Find(input, 3), result[3]).minY);
 			Assert.That(Box(Find(input, 9), result[9]).maxY, Is.LessThan(lowestConnected));
 		}
+
+		static float Left(PlacementInput input, Dictionary<int, LayoutPoint> r, int id) => Box(Find(input, id), r[id]).minX;
+		static float Right(PlacementInput input, Dictionary<int, LayoutPoint> r, int id) => Box(Find(input, id), r[id]).maxX;
+		static float Top(PlacementInput input, Dictionary<int, LayoutPoint> r, int id) => Box(Find(input, id), r[id]).maxY;
+		static float Bottom(PlacementInput input, Dictionary<int, LayoutPoint> r, int id) => Box(Find(input, id), r[id]).minY;
+
+		[Test]
+		public void Place_OutputPins_LeftEdgeIsRightmostChipEdgePlusSixCells_IncludingLooseRow()
+		{
+			PlacementInput input = new();
+			input.Nodes.Add(Pin(1, PlaceKind.InputPin, -5, 0));
+			input.Nodes.Add(Chip(2, 0, 0));
+			input.Nodes.Add(Chip(8, 0, 0, 6f, 0.5f));
+			input.Nodes.Add(Pin(3, PlaceKind.OutputPin, -10, 0.5f));
+			input.Nodes.Add(Pin(4, PlaceKind.OutputPin, -9, 0.5f));
+			Link(input, 1, 2);
+			Link(input, 2, 3);
+			Link(input, 2, 4);
+
+			var r = ChipPlacer.Place(input);
+
+			float rightmost = Math.Max(Right(input, r, 2), Right(input, r, 8));
+			Assert.That(rightmost, Is.EqualTo(Right(input, r, 8)).Within(1e-4));
+			Assert.That(r[3].X - 0.15f, Is.EqualTo(rightmost + 0.75f).Within(1e-4));
+			Assert.That(r[4].X - r[3].X, Is.EqualTo(1f).Within(1e-4));
+		}
+
+		[Test]
+		public void Place_ColumnGap_FollowsSpanningEdgeCount()
+		{
+			PlacementInput input = new();
+			input.Nodes.Add(Pin(1, PlaceKind.InputPin, -5, 0));
+			input.Nodes.Add(Chip(2, 0, 0));
+			input.Nodes.Add(Chip(3, 0, 0));
+			Link(input, 1, 2);
+			Link(input, 1, 3);
+			Link(input, 2, 3);
+
+			var r = ChipPlacer.Place(input);
+
+			Assert.That(Left(input, r, 2) - (-5f + 0.15f), Is.EqualTo(1.25f).Within(0.13));
+			Assert.That(Left(input, r, 3) - Right(input, r, 2), Is.EqualTo(1.25f).Within(0.13));
+		}
+
+		[Test]
+		public void Place_ColumnGap_IsCapped()
+		{
+			PlacementInput input = new();
+			input.Nodes.Add(Pin(1, PlaceKind.InputPin, -5, 0));
+			for (int i = 0; i < 18; i++)
+			{
+				input.Nodes.Add(Chip(10 + i, 0, 0));
+				Link(input, 1, 10 + i);
+			}
+
+			var r = ChipPlacer.Place(input);
+
+			Assert.That(Left(input, r, 10) - (-5f + 0.15f), Is.EqualTo(5f).Within(0.13));
+		}
+
+		[Test]
+		public void Place_StackedChips_KeepThreeCellGapAfterSnapping()
+		{
+			float[] heights = { 0.7f, 0.83f, 0.61f, 0.77f, 0.9f, 0.52f };
+			for (int variant = 0; variant < 4; variant++)
+			{
+				PlacementInput input = new();
+				input.Nodes.Add(Pin(1, PlaceKind.InputPin, -5, 0.013f * variant));
+				for (int i = 0; i < heights.Length; i++)
+				{
+					input.Nodes.Add(Chip(10 + i, 0, 0, 1f, heights[i]));
+					Link(input, 1, 10 + i);
+				}
+
+				var r = ChipPlacer.Place(input);
+
+				List<int> ids = new();
+				for (int i = 0; i < heights.Length; i++) ids.Add(10 + i);
+				ids.Sort((a, b) => Top(input, r, b).CompareTo(Top(input, r, a)));
+				for (int i = 1; i < ids.Count; i++)
+					Assert.That(Bottom(input, r, ids[i - 1]) - Top(input, r, ids[i]), Is.GreaterThanOrEqualTo(0.375f - 1e-4f), $"variant {variant}, pair {i}");
+			}
+		}
+
+		[Test]
+		public void Place_ParkingRow_PositionAndSpacing()
+		{
+			PlacementInput input = new();
+			input.Nodes.Add(Pin(1, PlaceKind.InputPin, -5, 0));
+			input.Nodes.Add(Chip(2, 0, 0));
+			input.Nodes.Add(Chip(3, 0, 0));
+			input.Nodes.Add(Chip(9, 0, 5));
+			input.Nodes.Add(Chip(10, 0, 5));
+			Link(input, 1, 2);
+			Link(input, 2, 3);
+
+			var r = ChipPlacer.Place(input);
+
+			float lowest = Math.Min(Bottom(input, r, 2), Bottom(input, r, 3));
+			foreach (int id in new[] { 9, 10 })
+			{
+				Assert.That(Top(input, r, id), Is.LessThanOrEqualTo(lowest - 0.5f + 1e-4f));
+				Assert.That(Top(input, r, id), Is.GreaterThanOrEqualTo(lowest - 0.625f - 1e-4f));
+			}
+			Assert.That(Left(input, r, 9), Is.EqualTo(Left(input, r, 2)).Within(0.13));
+			Assert.That(Left(input, r, 10) - Right(input, r, 9), Is.EqualTo(0.375f).Within(0.13));
+		}
+
+		[Test]
+		public void Place_PureCycleWithoutRoot_PlacesBoth()
+		{
+			PlacementInput input = new();
+			input.Nodes.Add(Chip(2, 0, 0));
+			input.Nodes.Add(Chip(3, 0, 0));
+			Link(input, 2, 3);
+			Link(input, 3, 2);
+
+			var r = ChipPlacer.Place(input);
+
+			Assert.That(r.Count, Is.EqualTo(2));
+			Assert.That(r[2].X, Is.LessThan(r[3].X));
+			Assert.That(Overlap(Find(input, 2), r[2], Find(input, 3), r[3]), Is.False);
+		}
+
+		[Test]
+		public void Place_IgnoresUnknownIdsOutputSourcesAndDuplicates()
+		{
+			PlacementInput input = new();
+			input.Nodes.Add(Pin(1, PlaceKind.InputPin, -5, 0));
+			input.Nodes.Add(Chip(2, 0, 0));
+			input.Nodes.Add(Chip(3, 0, 5));
+			input.Nodes.Add(Pin(4, PlaceKind.OutputPin, 5, 0));
+			Link(input, 1, 2);
+			Link(input, 1, 2);
+			Link(input, 99, 2);
+			Link(input, 2, 99);
+			Link(input, 4, 3);
+			Link(input, 1, 4);
+			Link(input, 2, 2);
+
+			var r = ChipPlacer.Place(input);
+
+			Assert.That(Left(input, r, 2) - (-5f + 0.15f), Is.EqualTo(0.875f).Within(0.13));
+			Assert.That(Top(input, r, 3), Is.LessThan(Bottom(input, r, 2)));
+		}
+
+		[Test]
+		public void Place_NoInputPins_FirstColumnStartsAtLeftmostChipEdge()
+		{
+			PlacementInput input = new();
+			input.Nodes.Add(Chip(2, 3, 0));
+			input.Nodes.Add(Chip(3, 7, 1));
+			Link(input, 2, 3);
+
+			var r = ChipPlacer.Place(input);
+
+			Assert.That(Left(input, r, 2), Is.EqualTo(2.51f).Within(0.07));
+		}
+
+		[Test]
+		public void Place_OnlyUnconnectedChips_StartSixCellsRightOfInputs()
+		{
+			PlacementInput input = new();
+			input.Nodes.Add(Pin(1, PlaceKind.InputPin, -5, 0));
+			input.Nodes.Add(Chip(2, 0, 0));
+			input.Nodes.Add(Chip(3, 0, 0));
+
+			var r = ChipPlacer.Place(input);
+
+			Assert.That(Left(input, r, 2) - (-5f + 0.15f), Is.EqualTo(0.75f).Within(0.07));
+			Assert.That(Left(input, r, 3), Is.GreaterThan(Right(input, r, 2)));
+		}
 	}
 }
