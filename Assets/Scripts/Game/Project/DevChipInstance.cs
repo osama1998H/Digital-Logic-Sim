@@ -316,7 +316,7 @@ namespace DLS.Game
 				{
 					if (other.ConnectedWire == wireToDelete)
 					{
-						other.RemoveConnectionDependency();
+						other.RemoveConnectionDependency(this);
 					}
 				}
 			}
@@ -337,15 +337,17 @@ namespace DLS.Game
 		}
 
 
-		public bool DeleteWiresAttachedToPinOfSubChip(int pinID)
+		// Deletes wires attached to the given pin of all subchips of the given type
+		// (pin IDs are only unique within a chip type, e.g. a chip and its 'save as' copy share the same pin IDs)
+		public bool DeleteWiresAttachedToPinOfSubChip(string subChipName, int pinID)
 		{
 			bool anyDeleted = false;
 
 			for (int i = Wires.Count - 1; i >= 0; i--)
 			{
 				WireInstance wire = Wires[i];
-				bool sourceMatch = wire.SourcePin.parent is SubChipInstance && wire.SourcePin.Address.PinID == pinID;
-				bool targetMatch = wire.TargetPin.parent is SubChipInstance && wire.TargetPin.Address.PinID == pinID;
+				bool sourceMatch = IsPinOfSubChipType(wire.SourcePin, subChipName, pinID);
+				bool targetMatch = IsPinOfSubChipType(wire.TargetPin, subChipName, pinID);
 
 				if (sourceMatch || targetMatch)
 				{
@@ -355,6 +357,11 @@ namespace DLS.Game
 			}
 
 			return anyDeleted;
+		}
+
+		static bool IsPinOfSubChipType(PinInstance pin, string subChipName, int pinID)
+		{
+			return pin.parent is SubChipInstance subChip && pin.Address.PinID == pinID && ChipDescription.NameMatch(subChip.Description.Name, subChipName);
 		}
 
 		public void GetWiresAttachedToElement(int elementID, HashSet<WireInstance> set)

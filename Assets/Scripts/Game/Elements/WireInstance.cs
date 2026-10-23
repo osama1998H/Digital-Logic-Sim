@@ -280,7 +280,7 @@ namespace DLS.Game
 
 		// If this wire connects to another wire that is about to be deleted, we want to remove that dependency by 
 		// copying over the deleted wire's points and connection info to this wire so it can continue to exist without the deleted wire.
-		public void RemoveConnectionDependency()
+		public void RemoveConnectionDependency(DevChipInstance owner)
 		{
 			WireInstance dependency = ConnectedWire;
 			bool connectToSource = SourceConnectionInfo.IsConnectedAtWire;
@@ -298,7 +298,7 @@ namespace DLS.Game
 				WirePoints.InsertRange(0, pointsToCopy);
 
 				// if some other wire connects to this wire, it needs to know how many points have been inserted here so that it can still connect in the correct place
-				Project.ActiveProject.ViewedChip.NotifyConnectedWiresPointsInserted(this, -1, 0, pointsToCopy.Count);
+				owner.NotifyConnectedWiresPointsInserted(this, -1, 0, pointsToCopy.Count);
 				originalWireConnectionPoint = dependency.originalWireConnectionPoint;
 				SourceConnectionInfo = dependency.SourceConnectionInfo;
 			}
