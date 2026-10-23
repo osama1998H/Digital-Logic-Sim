@@ -497,8 +497,14 @@ namespace DLS.Game
 			Queue<long> tickCounterOverTimeWindow = new();
 			int simLastMainThreadSyncFrame = -1;
 
-			Stopwatch stopwatch = new();
 			Stopwatch stopwatchTotal = Stopwatch.StartNew();
+
+			// Steps are scheduled against absolute time, so the thread can sleep while ahead of schedule
+			// (rather than spin-waiting between steps, which kept a cpu core busy at all times)
+			const double maxCatchUpSeconds = 0.1;
+			Stopwatch scheduleClock = new();
+			long scheduledSteps = 0;
+			int scheduleTicksPerSecond = -1;
 
 			while (simThreadActive)
 			{
@@ -526,8 +532,36 @@ namespace DLS.Game
 				{
 					Simulator.UpdateInPausedState();
 					stopwatchTotal.Stop();
+					scheduleTicksPerSecond = -1; // restart the schedule when unpaused
 					Thread.Sleep(10);
 					continue;
+				}
+
+				if (!advanceSingleSimStep)
+				{
+					int ticksPerSecond = targetTicksPerSecond;
+					if (ticksPerSecond != scheduleTicksPerSecond)
+					{
+						scheduleTicksPerSecond = ticksPerSecond;
+						scheduledSteps = 0;
+						scheduleClock.Restart();
+					}
+
+					double stepsDue = scheduleClock.Elapsed.TotalSeconds * ticksPerSecond;
+					if (scheduledSteps >= stepsDue)
+					{
+						Thread.Sleep(1);
+						continue;
+					}
+
+					// If far behind (chip too slow to keep up, or thread was stalled) then restart the schedule rather than bursting to catch up
+					if (stepsDue - scheduledSteps > Math.Max(1, ticksPerSecond * maxCatchUpSeconds))
+					{
+						scheduledSteps = 0;
+						scheduleClock.Restart();
+					}
+
+					scheduledSteps++;
 				}
 
 				if (advanceSingleSimStep)
@@ -537,8 +571,6 @@ namespace DLS.Game
 				}
 				else simPausedSingleStepCounter = 0;
 
-				double targetTickDurationMs = 1000.0 / targetTicksPerSecond;
-				stopwatch.Restart();
 				if (!stopwatchTotal.IsRunning) stopwatchTotal.Start();
 
 				// ---- Run sim ----
@@ -546,18 +578,6 @@ namespace DLS.Game
 				SimChip simChip = rootSimChip;
 				if (simChip == null) continue; // Could potentially be null for a frame when switching between chips
 				Simulator.RunSimulationStep(simChip, inputPins, audioState.simAudio);
-
-				// ---- Wait some amount of time (if needed) to try to hit the target ticks per second ----
-				while (true)
-				{
-					double elapsedMs = stopwatch.ElapsedTicks * (1000.0 / Stopwatch.Frequency);
-					double waitMs = targetTickDurationMs - elapsedMs;
-
-					if (waitMs <= 0) break;
-
-					// Wait some cycles before checking timer again (todo: better approach?)
-					Thread.SpinWait(10);
-				}
 
 				// ---- Update perf counter (measures average num ticks over last n seconds) ----
 				long elapsedMsTotal = stopwatchTotal.ElapsedMilliseconds;
