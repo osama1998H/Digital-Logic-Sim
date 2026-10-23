@@ -67,6 +67,8 @@ namespace DLS.Graphics
 
 		static bool MenuButtonsAndShortcutsEnabled => Project.ActiveProject.CanEditViewedChip;
 
+		public static bool CollectionPopupIsOpen => activeCollection != null;
+
 		public static void DrawUI(Project project)
 		{
 			DrawBottomBar(project);

@@ -74,7 +74,7 @@ namespace DLS.Graphics
 			UI.DrawPanel(new Vector2(0, top), new Vector2(UI.Width, HeaderHeight), headerCol, Anchor.TopLeft);
 
 			// The bottom-bar popup and context menu draw over the panel, so don't let clicks fall through them
-			bool ignoreInputs = UIDrawer.ActiveMenu != UIDrawer.MenuType.None || ContextMenu.HasFocus();
+			bool ignoreInputs = UIDrawer.ActiveMenu != UIDrawer.MenuType.None || ContextMenu.HasFocus() || BottomBarUI.CollectionPopupIsOpen;
 			bool mouseOverPanel = UI.MouseInsideBounds(panelBounds) && !ignoreInputs;
 			bool paused = project.simPaused;
 
@@ -195,6 +195,10 @@ namespace DLS.Graphics
 				float x = StepX(cursorStep) + stepWidth / 2;
 				UI.DrawLine(new Vector2(x, bottom), new Vector2(x, rowsTop), 0.08f, cursorCol);
 			}
+
+			// A layer draws all its shapes before its text, so start a new one: otherwise the panel's text
+			// would show through the bottom-bar popups drawn after it
+			UI.StartNewLayer();
 
 			// Left edge of a step; the right edge of rightStep is waveRight
 			float StepX(long step) => waveRight - (rightStep + 1 - step) * stepWidth;
