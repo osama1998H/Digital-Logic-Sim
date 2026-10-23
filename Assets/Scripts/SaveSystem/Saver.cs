@@ -92,10 +92,16 @@ namespace DLS.SaveSystem
 			// The save version on its own is not a change (otherwise every chip saved by an older version would prompt after a version bump)
 			string currentVersion = current.DLSVersion;
 			current.DLSVersion = lastSaved.DLSVersion;
-			string jsonA = CreateSerializedChipDescription(lastSaved);
-			string jsonB = CreateSerializedChipDescription(current);
-			current.DLSVersion = currentVersion;
-			return !UnsavedChangeDetector.IsEquivalentJson(jsonA, jsonB);
+			try
+			{
+				string jsonA = CreateSerializedChipDescription(lastSaved);
+				string jsonB = CreateSerializedChipDescription(current);
+				return !UnsavedChangeDetector.IsEquivalentJson(jsonA, jsonB);
+			}
+			finally
+			{
+				current.DLSVersion = currentVersion;
+			}
 		}
 
 		static void WriteToFile(string data, string path)

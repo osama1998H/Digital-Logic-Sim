@@ -210,8 +210,10 @@ namespace DLS.Graphics
 			Draw.Quad(centre, size, bodyCol);
 			Draw.QuadOutline(centre, size, outlineWidth, ColHelper.Darken(col, 0.25f));
 
-			// (Ignored while creating a wire, so that wire points can be placed on top of notes, and wires underneath them can be connected to)
-			if (!controller.IsCreatingWire && InputHelper.MouseInsideBounds_World(centre, size))
+			// Notes only take the mouse when nothing else (wire, chip, pin) already has it, but a later note may beat an earlier one.
+			// Ignored while creating a wire (so wire points can be placed on top of notes) and when the chip can't be edited.
+			bool mouseFree = InteractionState.ElementUnderMouse is null or NoteInstance;
+			if (mouseFree && canEditViewedChip && !controller.IsCreatingWire && InputHelper.MouseInsideBounds_World(centre, size))
 			{
 				InteractionState.NotifyElementUnderMouse(note);
 			}
