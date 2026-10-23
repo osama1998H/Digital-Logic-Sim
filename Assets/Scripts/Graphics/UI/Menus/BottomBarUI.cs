@@ -29,6 +29,7 @@ namespace DLS.Graphics
 			$"ORGANIZE ALL {shortcutTextCol}Ctrl+Shift+T",
 			"STATISTICS",
 			$"TRUTH TABLE  {shortcutTextCol}Ctrl+Shift+Y",
+			$"TEST BENCH   {shortcutTextCol}Ctrl+B",
 			$"LIBRARY      {shortcutTextCol}Ctrl+L",
 			$"PREFS        {shortcutTextCol}Ctrl+P",
 			$"QUIT         {shortcutTextCol}Ctrl+Q"
@@ -41,9 +42,10 @@ namespace DLS.Graphics
 		const int OrganizeAllButtonIndex = 4;
 		const int StatisticsButtonIndex = 5;
 		const int TruthTableButtonIndex = 6;
-		const int LibraryButtonIndex = 7;
-		const int OptionsButtonIndex = 8;
-		const int QuitButtonIndex = 9;
+		const int TestBenchButtonIndex = 7;
+		const int LibraryButtonIndex = 8;
+		const int OptionsButtonIndex = 9;
+		const int QuitButtonIndex = 10;
 
 		// ---- State ----
 		static float scrollX;
@@ -130,6 +132,7 @@ namespace DLS.Graphics
 				else if (i == OrganizeAllButtonIndex) ChipOrganizer.OrganizeAll(Project.ActiveProject.ViewedChip);
 				else if (i == StatisticsButtonIndex) OpenStatsMenu();
 				else if (i == TruthTableButtonIndex) OpenTruthTable();
+				else if (i == TestBenchButtonIndex) OpenTestBench();
 				else if (i == LibraryButtonIndex) OpenLibraryMenu();
 				else if (i == OptionsButtonIndex) OpenPreferencesMenu();
 				else if (i == QuitButtonIndex) ExitToMainMenu();
@@ -410,6 +413,7 @@ namespace DLS.Graphics
 		static void OpenStatsMenu() => ChipStatsMenu.Open(DescriptionCreator.CreateChipDescription(Project.ActiveProject.ViewedChip));
 		// Uses the chip as currently edited, including unsaved changes
 		static void OpenTruthTable() => TruthTableMenu.Open(DescriptionCreator.CreateChipDescription(Project.ActiveProject.ViewedChip));
+		static void OpenTestBench() => TestBenchMenu.Open(DescriptionCreator.CreateChipDescription(Project.ActiveProject.ViewedChip));
 		static void OpenLibraryMenu() => UIDrawer.SetActiveMenu(UIDrawer.MenuType.ChipLibrary);
 		static void OpenPreferencesMenu() => UIDrawer.SetActiveMenu(UIDrawer.MenuType.Preferences);
 
@@ -437,6 +441,7 @@ namespace DLS.Graphics
 				if (KeyboardShortcuts.TidyWiresShortcutTriggered) ChipOrganizer.TidyWires(Project.ActiveProject.ViewedChip);
 				if (KeyboardShortcuts.OrganizeAllShortcutTriggered) ChipOrganizer.OrganizeAll(Project.ActiveProject.ViewedChip);
 				if (KeyboardShortcuts.TruthTableShortcutTriggered) OpenTruthTable();
+				if (KeyboardShortcuts.TestBenchShortcutTriggered) OpenTestBench();
 			}
 
 			if (KeyboardShortcuts.PreferencesShortcutTriggered) OpenPreferencesMenu();

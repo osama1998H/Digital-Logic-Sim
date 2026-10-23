@@ -25,7 +25,8 @@ namespace DLS.Graphics
 			BatchRename,
 			ReplaceChip,
 			ChipStats,
-			TruthTable
+			TruthTable,
+			TestBench
 		}
 
 		static MenuType activeMenuOld;
@@ -79,6 +80,7 @@ namespace DLS.Graphics
 			else if (menuToDraw == MenuType.ReplaceChip) ReplaceChipPopup.DrawMenu();
 			else if (menuToDraw == MenuType.ChipStats) ChipStatsMenu.DrawMenu();
 			else if (menuToDraw == MenuType.TruthTable) TruthTableMenu.DrawMenu();
+			else if (menuToDraw == MenuType.TestBench) TestBenchMenu.DrawMenu();
 			else
 			{
 				bool showSimPausedBanner = project.simPaused;
@@ -102,6 +104,7 @@ namespace DLS.Graphics
 			{
 				if (activeMenuOld == MenuType.ChipCustomization) CustomizationSceneDrawer.OnCustomizationMenuClosed();
 				if (activeMenuOld == MenuType.TruthTable) TruthTableMenu.OnMenuClosed();
+				if (activeMenuOld == MenuType.TestBench) TestBenchMenu.OnMenuClosed();
 
 				if (ActiveMenu == MenuType.ChipSave) ChipSaveMenu.OnMenuOpened();
 				else if (ActiveMenu == MenuType.ChipLibrary) ChipLibraryMenu.OnMenuOpened();
@@ -118,6 +121,7 @@ namespace DLS.Graphics
 				else if (ActiveMenu == MenuType.ReplaceChip) ReplaceChipPopup.OnMenuOpened();
 				else if (ActiveMenu == MenuType.ChipStats) ChipStatsMenu.OnMenuOpened();
 				else if (ActiveMenu == MenuType.TruthTable) TruthTableMenu.OnMenuOpened();
+				else if (ActiveMenu == MenuType.TestBench) TestBenchMenu.OnMenuOpened();
 
 				if (InInputBlockingMenu() && Project.ActiveProject != null && Project.ActiveProject.controller != null)
 				{
@@ -141,6 +145,7 @@ namespace DLS.Graphics
 		public static void Reset()
 		{
 			TruthTableMenu.OnMenuClosed();
+			TestBenchMenu.OnMenuClosed();
 			SetActiveMenu(MenuType.None);
 			activeMenuOld = MenuType.None;
 			ContextMenu.Reset();

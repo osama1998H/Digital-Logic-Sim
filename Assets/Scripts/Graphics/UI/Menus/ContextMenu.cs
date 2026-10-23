@@ -42,12 +42,15 @@ namespace DLS.Graphics
 
 		static readonly MenuEntry truthTableEntry = new(Format("TRUTH TABLE"), OpenTruthTableForSubChip, () => true);
 
+		static readonly MenuEntry testBenchEntry = new(Format("TEST BENCH"), OpenTestBenchForSubChip, () => true);
+
 		static readonly MenuEntry[] entries_customSubchip =
 		{
 			new(Format("VIEW"), EnterViewMode, CanEnterViewMode),
 			openChipEntry,
 			statsEntry,
 			truthTableEntry,
+			testBenchEntry,
 			labelChipEntry,
 			dividerMenuEntry,
 			replaceChipEntry,
@@ -61,6 +64,7 @@ namespace DLS.Graphics
 		{
 			statsEntry,
 			truthTableEntry,
+			testBenchEntry,
 			labelChipEntry,
 			dividerMenuEntry,
 			replaceChipEntry,
@@ -332,12 +336,16 @@ namespace DLS.Graphics
 			UIDrawer.SetActiveMenu(UIDrawer.MenuType.BatchRename);
 		}
 
-		static void OpenTruthTableForSubChip()
+		static void OpenTruthTableForSubChip() => TruthTableMenu.Open(GetSavedSubChipDescription());
+
+		static void OpenTestBenchForSubChip() => TestBenchMenu.Open(GetSavedSubChipDescription());
+
+		static ChipDescription GetSavedSubChipDescription()
 		{
 			ChipDescription description = ((SubChipInstance)interactionContext).Description;
 			// Prefer the saved library version, which is what the subchip actually simulates
 			if (Project.ActiveProject.chipLibrary.TryGetChipDescription(description.Name, out ChipDescription libraryDescription)) description = libraryDescription;
-			TruthTableMenu.Open(description);
+			return description;
 		}
 
 		static void OpenStatsMenu() => ChipStatsMenu.Open(((SubChipInstance)interactionContext).Description);

@@ -55,6 +55,9 @@ Total NAND gates across all levels, longest path in gate delays, and a breakdown
 ### Truth table
 Right-click a chip and choose **Truth Table**, or press **Ctrl+Shift+Y** for the chip you're editing. Copy or save the table as CSV, and get a simplified expression for 1-bit outputs.
 
+### Test bench
+Right-click a chip and choose **Test Bench**, or press **Ctrl+B** for the chip you're editing, to check it against a list of test lines. Each line sets inputs and, after `->`, says what the outputs should be, for example `A=1 B=0 -> SUM=1`. Lines with no `->` only set inputs, so you can clock a sequential chip step by step; inputs start at 0 and keep their value from line to line. Pins are referenced by name or by position (`in1`, `out2`), values can be decimal, negative, `0b1010` or `0xFF`, and an expected value can be `x` (don't care) or `z` (floating). `#` starts a comment. Tests are saved per chip in the project's `Tests` folder. **FILL FROM CURRENT** writes one line per input combination of a combinational chip (up to 8 input bits), using its current outputs.
+
 ### Value tooltips
 Hover any wire or pin to see its current value in binary, decimal, signed and hex. Turn it off with **Value tooltips** in Preferences.
 

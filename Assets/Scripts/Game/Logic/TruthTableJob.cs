@@ -81,7 +81,7 @@ namespace DLS.Game.Logic
 			return nextRow >= Table.RowCount;
 		}
 
-		static string FindMissingSubChip(ChipDescription chip, ChipLibrary library, int depth)
+		internal static string FindMissingSubChip(ChipDescription chip, ChipLibrary library, int depth)
 		{
 			if (depth > 64) return null;
 			foreach (SubChipDescription sub in chip.SubChips)
@@ -94,7 +94,7 @@ namespace DLS.Game.Logic
 			return null;
 		}
 
-		static TruthPin[] ToTruthPins(PinDescription[] pins)
+		internal static TruthPin[] ToTruthPins(PinDescription[] pins)
 		{
 			TruthPin[] result = new TruthPin[pins.Length];
 			for (int i = 0; i < pins.Length; i++) result[i] = new TruthPin(pins[i].Name, (int)pins[i].BitCount);
