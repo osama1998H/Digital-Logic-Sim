@@ -219,6 +219,52 @@ namespace DLS.Game
 			CameraController.NotifyChipNameChanged(saveChipDescription.Name);
 		}
 
+		// Saves a copy of a chip from the library under a new name (the chip being edited is not affected).
+		// Note: the copy keeps the same pin IDs as the original, so one can be swapped for the other without losing connections.
+		public void DuplicateChip(string sourceName, string newName)
+		{
+			ChipDescription copy = Saver.CloneChipDescription(chipLibrary.GetChipDescription(sourceName));
+			copy.Name = newName;
+			copy.Size = Vector2.Max(copy.Size, SubChipInstance.CalculateMinChipSize(copy.InputPins, copy.OutputPins, newName));
+
+			Saver.SaveChip(copy, description.ProjectName);
+			chipLibrary.NotifyChipSaved(copy);
+
+			// Place the copy directly after the original in its collection
+			foreach (ChipCollection collection in description.ChipCollections)
+			{
+				int index = collection.Chips.FindIndex(c => ChipDescription.NameMatch(c, sourceName));
+				if (index != -1)
+				{
+					collection.Chips.Insert(index + 1, copy.Name);
+					break;
+				}
+			}
+
+			// New chips are automatically starred
+			SetStarred(copy.Name, true, false, false);
+			UpdateAndSaveProjectDescription();
+			SearchPopup.AddRecentChip(copy.Name);
+		}
+
+		public bool IsValidNewChipName(string chipName)
+		{
+			return !string.IsNullOrWhiteSpace(chipName) && SaveUtils.ValidFileName(chipName) && !chipLibrary.HasChip(chipName);
+		}
+
+		// e.g. "AND-8 COPY", "AND-8 COPY 2", ...
+		public string CreateUniqueCopyName(string sourceName)
+		{
+			int maxLength = ChipSaveMenu.MaxLengthChipName.Length;
+			for (int i = 1; ; i++)
+			{
+				string suffix = i == 1 ? " COPY" : $" COPY {i}";
+				string baseName = sourceName.Length + suffix.Length > maxLength ? sourceName.Substring(0, Mathf.Max(0, maxLength - suffix.Length)) : sourceName;
+				string name = baseName + suffix;
+				if (IsValidNewChipName(name)) return name;
+			}
+		}
+
 		public bool ActiveChipHasUnsavedChanges()
 		{
 			// If chip has no last saved description, then has unsaved changes if any elements have been placed inside it

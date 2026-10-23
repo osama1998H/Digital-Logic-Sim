@@ -47,6 +47,7 @@ namespace DLS.Graphics
 		static bool renamingCollection;
 		static bool isConfirmingChipDeletion;
 		static bool isConfirmingCollectionDeletion;
+		static string duplicatingChipName; // name of chip being duplicated (null if not duplicating)
 
 		static string deleteConfirmMessage;
 		static Color deleteConfirmMessageCol;
@@ -87,7 +88,7 @@ namespace DLS.Graphics
 
 			isScrolling = UI.GetScrollbarState(ID_CollectionsScrollbar).isDragging || UI.GetScrollbarState(ID_StarredScrollbar).isDragging;
 
-			bool popupHasFocus = creatingNewCollection || renamingCollection || isConfirmingChipDeletion || isConfirmingCollectionDeletion;
+			bool popupHasFocus = creatingNewCollection || renamingCollection || isConfirmingChipDeletion || isConfirmingCollectionDeletion || IsDuplicatingChip;
 
 			using (UI.BeginDisabledScope(popupHasFocus))
 			{
@@ -111,9 +112,12 @@ namespace DLS.Graphics
 			renamingCollection = false;
 			isConfirmingChipDeletion = false;
 			isConfirmingCollectionDeletion = false;
+			duplicatingChipName = null;
 
 			deleteConfirmMessage = string.Empty;
 		}
+
+		static bool IsDuplicatingChip => duplicatingChipName != null;
 
 		static void DrawPanelHeader(string text, Vector2 topLeft, float width)
 		{
@@ -396,7 +400,7 @@ namespace DLS.Graphics
 					panelID = UI.ReservePanel();
 
 					// New collection button
-					if (!renamingCollection)
+					if (!renamingCollection && !IsDuplicatingChip)
 					{
 						bool createNew = UI.Button("NEW COLLECTION", ActiveUITheme.ButtonTheme, topLeft, new Vector2(panelContentBounds.Width, 0), true, false, true, Anchor.TopLeft);
 						if (createNew) creatingNewCollection = true;
@@ -408,6 +412,32 @@ namespace DLS.Graphics
 						}
 
 						topLeft += Vector2.down * (UI.PrevBounds.Height + DefaultButtonSpacing * 2);
+					}
+
+					// Duplicate chip input field
+					if (IsDuplicatingChip)
+					{
+						using (UI.BeginDisabledScope(false))
+						{
+							InputFieldTheme inputTheme = MenuHelper.Theme.ChipNameInputField;
+							inputTheme.fontSize = MenuHelper.Theme.FontSizeRegular;
+							InputFieldState nameField = UI.InputField(ID_NameInput, inputTheme, topLeft, new Vector2(panelContentBounds.Width, 2.5f), string.Empty, Anchor.TopLeft, 1, ChipSaveMenu.ValidateChipNameInput, true);
+							bool canDuplicate = project.IsValidNewChipName(nameField.text);
+							int button_cancelConfirm = MenuHelper.DrawButtonPair("CANCEL", "DUPLICATE", UI.PrevBounds.BottomLeft, panelContentBounds.Width, true, true, canDuplicate);
+							if (button_cancelConfirm == 0)
+							{
+								nameField.ClearText();
+								duplicatingChipName = null;
+							}
+							else if (button_cancelConfirm == 1 || (KeyboardShortcuts.ConfirmShortcutTriggered && canDuplicate))
+							{
+								string newName = nameField.text;
+								project.DuplicateChip(duplicatingChipName, newName);
+								SelectChipInCollection(newName);
+								nameField.ClearText();
+								duplicatingChipName = null;
+							}
+						}
 					}
 
 					// New collection / rename collection input field
@@ -522,6 +552,14 @@ namespace DLS.Graphics
 				interactable_chipActionButtons[2] = !isBuiltin;
 				int chipActionIndex = DrawHorizontalButtonGroup(buttonNames_chipAction, interactable_chipActionButtons, ref topLeft, width);
 
+				bool duplicate = UI.Button("DUPLICATE", ActiveUITheme.ButtonTheme, topLeft, new Vector2(width, 0), !isBuiltin, false, true, Anchor.TopLeft);
+				topLeft.y -= UI.PrevBounds.Height + DefaultButtonSpacing;
+				if (duplicate)
+				{
+					duplicatingChipName = selectedChipName;
+					UI.GetInputFieldState(ID_NameInput).SetText(project.CreateUniqueCopyName(selectedChipName));
+				}
+
 				if (chipActionIndex == 0) // use
 				{
 					project.controller.StartPlacing(project.chipLibrary.GetChipDescription(selectedChipName));
@@ -624,6 +662,22 @@ namespace DLS.Graphics
 			selectedCollectionIndex = 0;
 			selectedChipInCollectionIndex = -1;
 			ResetPopupState();
+		}
+
+		// Select the chip in whichever collection it is in (e.g. after duplicating it)
+		static void SelectChipInCollection(string chipName)
+		{
+			for (int i = 0; i < collections.Count; i++)
+			{
+				int chipIndex = collections[i].Chips.FindIndex(c => ChipDescription.NameMatch(c, chipName));
+				if (chipIndex == -1) continue;
+
+				selectedCollectionIndex = i;
+				selectedChipInCollectionIndex = chipIndex;
+				selectedStarredItemIndex = -1;
+				collections[i].IsToggledOpen = true;
+				return;
+			}
 		}
 
 		static void DeleteSelectedCollection()
