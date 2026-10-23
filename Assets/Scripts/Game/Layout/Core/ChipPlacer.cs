@@ -203,12 +203,20 @@ namespace DLS.Game.Layout
 				rightmost = all;
 			}
 
-			// Output pins: one shared horizontal translation
+			// Output pins: one shared horizontal translation, rounded up so the lowest-ID pin's snap point lands on the grid
 			if (outputIDs.Count > 0)
 			{
 				float left = float.MaxValue;
 				foreach (int id in outputIDs) left = Math.Min(left, CentreX(nodes[id], nodes[id].Position.X) - nodes[id].BoxWidth / 2);
-				float dx = rightmost > float.MinValue ? rightmost + 6 * grid - left : 0;
+				float dx = 0;
+				if (rightmost > float.MinValue)
+				{
+					PlaceNode first = nodes[outputIDs[0]];
+					float snapX = first.Position.X + first.SnapOffset.X;
+					float minSnapX = snapX + rightmost + 6 * grid - left;
+					dx = (float)Math.Ceiling(minSnapX / grid - EdgeEps) * grid - snapX;
+				}
+
 				foreach (int id in outputIDs) result[id] = new LayoutPoint(nodes[id].Position.X + dx, nodes[id].Position.Y);
 			}
 

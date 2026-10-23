@@ -191,8 +191,36 @@ namespace LayoutTests
 
 			float rightmost = Math.Max(Right(input, r, 2), Right(input, r, 8));
 			Assert.That(rightmost, Is.EqualTo(Right(input, r, 8)).Within(1e-4));
-			Assert.That(r[3].X - 0.15f, Is.EqualTo(rightmost + 0.75f).Within(1e-4));
+			// At least six cells, plus under one more cell so the first output pin lands on the grid
+			Assert.That(r[3].X - 0.15f, Is.GreaterThanOrEqualTo(rightmost + 0.75f - 1e-4f));
+			Assert.That(r[3].X - 0.15f, Is.LessThan(rightmost + 0.875f));
 			Assert.That(r[4].X - r[3].X, Is.EqualTo(1f).Within(1e-4));
+		}
+
+		[Test]
+		public void Place_OutputPins_FirstPinSnapsToGridAndAllShiftTogether()
+		{
+			PlacementInput input = new();
+			input.Nodes.Add(Pin(1, PlaceKind.InputPin, -5, 0));
+			input.Nodes.Add(Chip(2, 0, 0, 1.37f));
+			PlaceNode first = Pin(3, PlaceKind.OutputPin, 7.01f, 0.5f);
+			first.SnapOffset = new LayoutPoint(0.02f, 0);
+			input.Nodes.Add(first);
+			input.Nodes.Add(Pin(4, PlaceKind.OutputPin, 6.33f, -0.5f));
+			Link(input, 1, 2);
+			Link(input, 2, 3);
+			Link(input, 2, 4);
+
+			var r = ChipPlacer.Place(input);
+
+			float cells = (r[3].X + first.SnapOffset.X) / 0.125f;
+			Assert.That(cells, Is.EqualTo(MathF.Round(cells)).Within(1e-3));
+			Assert.That(r[4].X - r[3].X, Is.EqualTo(6.33f - 7.01f).Within(1e-4));
+			Assert.That(r[3].Y, Is.EqualTo(0.5f).Within(1e-4));
+			Assert.That(r[4].Y, Is.EqualTo(-0.5f).Within(1e-4));
+			float leftmostOutput = Math.Min(Left(input, r, 3), Left(input, r, 4));
+			Assert.That(leftmostOutput, Is.GreaterThanOrEqualTo(Right(input, r, 2) + 0.75f - 1e-4f));
+			Assert.That(leftmostOutput, Is.LessThan(Right(input, r, 2) + 0.875f));
 		}
 
 		[Test]
