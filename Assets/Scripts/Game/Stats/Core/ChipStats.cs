@@ -50,6 +50,7 @@ namespace DLS.Game.Stats
 		public long TotalNands;
 		public int? LongestPath;
 		public bool HasFeedback;
+		public bool HasInputToOutputPath;
 		public List<(string Name, long Count, long NandsEach)> Breakdown = new List<(string, long, long)>();
 		public List<(string Name, long Count)> OtherParts = new List<(string, long)>();
 	}
@@ -102,7 +103,11 @@ namespace DLS.Game.Stats
 				{
 					for (int i = 0; i < info.Delay.GetLength(0); i++)
 					{
-						for (int j = 0; j < info.Delay.GetLength(1); j++) longest = Math.Max(longest, info.Delay[i, j]);
+						for (int j = 0; j < info.Delay.GetLength(1); j++)
+						{
+							longest = Math.Max(longest, info.Delay[i, j]);
+							if (info.Delay[i, j] >= 0) result.HasInputToOutputPath = true;
+						}
 					}
 				}
 				result.LongestPath = longest;

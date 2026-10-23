@@ -253,6 +253,17 @@ namespace LayoutTests
 		}
 
 		[Test]
+		public void HasInputToOutputPath_FalseWhenOnlyOpaqueParts()
+		{
+			var opaque = Def("DISP", StatsKind.Opaque, new[] { 0 }, new[] { 1 }, new (int, string)[0]);
+			var lib = new TestLib().Add(opaque);
+			var root = Def("Top", StatsKind.Custom, new[] { 0 }, new[] { 1 }, new[] { (20, "DISP"), (21, "DISP") },
+				W(P(0, 0), P(20, 0)), W(P(21, 1), P(1, 0)));
+			Assert.That(ChipStatsCalculator.Calculate(root, lib).HasInputToOutputPath, Is.False);
+			Assert.That(ChipStatsCalculator.Calculate(And(), new TestLib().Add(Nand())).HasInputToOutputPath, Is.True);
+		}
+
+		[Test]
 		public void InputWiredToOutput_DepthZero()
 		{
 			var root = Def("Top", StatsKind.Custom, new[] { 0 }, new[] { 1 }, new (int, string)[0], W(P(0, 0), P(1, 0)));

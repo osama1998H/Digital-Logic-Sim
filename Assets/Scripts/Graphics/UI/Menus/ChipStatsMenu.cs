@@ -43,7 +43,8 @@ namespace DLS.Graphics
 			{
 				ChipStatsResult result = ChipStatsCalculator.Calculate(ChipStatsAdapter.ToDef(chip), ChipStatsAdapter.Library(Project.ActiveProject.chipLibrary));
 				nandLine = "NAND gates: " + Format(result.TotalNands);
-				if (result.HasFeedback || result.LongestPath == null) pathLine = "Longest path: not defined: contains a feedback loop (memory)";
+				if (result.HasFeedback || result.LongestPath == null) pathLine = "Longest path: not defined (contains a feedback loop / memory)";
+				else if (!result.HasInputToOutputPath) pathLine = "Longest path: none (no path from inputs to outputs)";
 				else pathLine = "Longest path: " + result.LongestPath.Value + (result.LongestPath.Value == 1 ? " gate delay" : " gate delays");
 
 				foreach ((string n, long count, long each) in result.Breakdown) rows.Add((n, Format(count), Format(each), Format(count * each)));
