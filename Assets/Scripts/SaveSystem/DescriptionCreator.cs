@@ -25,6 +25,9 @@ namespace DLS.SaveSystem
 			PinDescription[] inputPins = OrderPins(chip.GetInputPins()).Select(CreatePinDescription).ToArray();
 			PinDescription[] outputPins = OrderPins(chip.GetOutputPins()).Select(CreatePinDescription).ToArray();
 			SubChipDescription[] subchips = chip.GetSubchips().Select(CreateSubChipDescription).ToArray();
+			// Null (rather than empty) when there are no notes, so the field is left out of the save file
+			NoteDescription[] notes = chip.GetNotes().OrderBy(n => n.ID).Select(CreateNoteDescription).ToArray();
+			if (notes.Length == 0) notes = null;
 			Vector2 minChipsSize = SubChipInstance.CalculateMinChipSize(inputPins, outputPins, name);
 			size = Vector2.Max(minChipsSize, size);
 
@@ -45,6 +48,7 @@ namespace DLS.SaveSystem
 				OutputPins = outputPins,
 				Wires = chip.Wires.Select(CreateWireDescription).ToArray(),
 				Displays = displays,
+				Notes = notes,
 				ChipType = ChipType.Custom
 			};
 		}
@@ -71,6 +75,11 @@ namespace DLS.SaveSystem
 				subChip.IsBus ? null : subChip.OutputPins.Select(p => new OutputPinColourInfo(p.Colour, p.Address.PinID)).ToArray(),
 				internalData
 			);
+		}
+
+		public static NoteDescription CreateNoteDescription(NoteInstance note)
+		{
+			return new NoteDescription(note.ID, note.Position, note.Text ?? string.Empty, note.Colour);
 		}
 
 		public static SubChipDescription CreateBuiltinSubChipDescriptionForPlacement(ChipType type, string name, int id, Vector2 position)

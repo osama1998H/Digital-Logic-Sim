@@ -38,8 +38,10 @@ namespace DLS.Game.Editing
 				newPositions[selection[i].ID] = selection[i].Position + new Vector2(deltas[i].dx, deltas[i].dy);
 			}
 
-			ElementBox[] otherBoxes = devChip.Elements.Where(e => !e.IsSelected).Select(ToBox).ToArray();
-			bool valid = !ArrangeMath.AnyOverlap(movedBoxes, otherBoxes) && PinOrderUnchanged(devChip, newPositions);
+			// Notes may overlap anything, so they're left out of the overlap test (both as moved elements and as obstacles)
+			ElementBox[] movedBoxesWithoutNotes = movedBoxes.Where((_, i) => selection[i] is not NoteInstance).ToArray();
+			ElementBox[] otherBoxes = devChip.Elements.Where(e => !e.IsSelected && e is not NoteInstance).Select(ToBox).ToArray();
+			bool valid = !ArrangeMath.AnyOverlap(movedBoxesWithoutNotes, otherBoxes) && PinOrderUnchanged(devChip, newPositions);
 
 			if (!valid)
 			{

@@ -1,4 +1,5 @@
 using System.Linq;
+using DLS.Description;
 using Seb.Vis;
 using Seb.Vis.UI;
 using UnityEngine;
@@ -21,6 +22,13 @@ namespace DLS.Graphics
 
 		public const float FontSizeChipName = 0.25f;
 		public const float FontSizePinLabel = 0.2f;
+
+		// Notes use the monospaced regular font, so their size can be calculated from the character count
+		public const float FontSizeNote = 0.2f;
+		public const float NoteCharWidth = FontSizeNote * 0.6f; // JetBrains Mono advance width is 0.6 em
+		public const float NoteLineHeight = FontSizeNote * 1.3f; // Matches the line height used by the text renderer (1.3 em)
+		public const float NotePadding = 0.1f;
+		public const float NoteAlpha = 0.85f;
 
 		public const float SubChipPinInset = 0.015f;
 		public const float SelectionBoundsPadding = 0.08f;
@@ -51,6 +59,18 @@ namespace DLS.Graphics
 		public static readonly UIThemeDLS ActiveUITheme = CreateUITheme();
 
 		// ---- Helper functions ----
+		public static Color GetNoteColour(NoteColour colour)
+		{
+			return colour switch
+			{
+				NoteColour.Blue => new Color(0.62f, 0.8f, 1f),
+				NoteColour.Green => new Color(0.68f, 0.9f, 0.62f),
+				NoteColour.Pink => new Color(1f, 0.71f, 0.83f),
+				NoteColour.Grey => new Color(0.8f, 0.8f, 0.8f),
+				_ => new Color(1f, 0.92f, 0.55f)
+			};
+		}
+
 		public static Color GetStateColour(bool isHigh, uint index, bool hover = false)
 		{
 			index = (uint)Mathf.Min(index, ActiveTheme.StateHighCol.Length - 1); // clamp just to be safe...

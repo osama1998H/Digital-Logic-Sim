@@ -14,6 +14,8 @@ namespace DLS.Game.Layout
 
 			foreach (IMoveable element in chip.Elements)
 			{
+				if (element is NoteInstance) continue; // Wires may run underneath notes
+
 				Bounds2D bounds = element.BoundingBox;
 				problem.Obstacles.Add(new LayoutRect(element.ID, bounds.Min.x, bounds.Min.y, bounds.Max.x, bounds.Max.y));
 			}

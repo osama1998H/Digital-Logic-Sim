@@ -127,6 +127,20 @@ namespace DLS.Game
 			RecordUndoAction(action);
 		}
 
+		public void RecordNoteEdit(int id, string textBefore, NoteColour colourBefore, string textAfter, NoteColour colourAfter)
+		{
+			NoteEditUndoAction action = new()
+			{
+				noteID = id,
+				textBefore = textBefore,
+				colourBefore = colourBefore,
+				textAfter = textAfter,
+				colourAfter = colourAfter
+			};
+
+			RecordUndoAction(action);
+		}
+
 		public void RecordReplaceSubChips(SubChipDescription[] subChipsBefore, SubChipDescription[] subChipsAfter, WireDescription[] wiresBefore, WireDescription[] wiresAfter)
 		{
 			ReplaceSubChipsUndoAction action = new()
@@ -155,6 +169,7 @@ namespace DLS.Game
 		{
 			List<SubChipInstance> subchips = elements.OfType<SubChipInstance>().ToList();
 			DevPinInstance[] devPins = elements.OfType<DevPinInstance>().ToArray();
+			NoteInstance[] notes = elements.OfType<NoteInstance>().ToArray();
 
 			// When deleting elements, store full state of ALL wires, not just those affected by the deletion.
 			// This is because other wires may be connected to the deleted wires (in which case their points are modified),
@@ -178,6 +193,7 @@ namespace DLS.Game
 				subchipDescriptions = subchips.Select(DescriptionCreator.CreateSubChipDescription).ToArray(),
 				pinDescriptions = devPins.Select(DescriptionCreator.CreatePinDescription).ToArray(),
 				pinInInputFlags = devPins.Select(p => p.IsInputPin).ToArray(),
+				noteDescriptions = notes.Select(DescriptionCreator.CreateNoteDescription).ToArray(),
 				wireStateBeforeDelete = wireState,
 				isDeleteAction = delete
 			};
@@ -247,6 +263,10 @@ namespace DLS.Game
 				else if (action is ReplaceSubChipsUndoAction replace)
 				{
 					replace.Trigger(undo, devChip);
+				}
+				else if (action is NoteEditUndoAction noteEdit)
+				{
+					noteEdit.Trigger(undo, devChip);
 				}
 			}
 			catch (Exception e)
@@ -323,6 +343,24 @@ namespace DLS.Game
 					else if (element is SubChipInstance subChip) subChip.Label = name;
 					Project.ActiveProject.controller.Select(element, true);
 				}
+			}
+		}
+
+		class NoteEditUndoAction : UndoAction
+		{
+			public int noteID;
+			public string textBefore;
+			public NoteColour colourBefore;
+			public string textAfter;
+			public NoteColour colourAfter;
+
+			public void Trigger(bool undo, DevChipInstance devChip)
+			{
+				if (!devChip.TryGetNoteByID(noteID, out NoteInstance note)) throw new Exception("Note to edit not found");
+
+				note.Text = undo ? textBefore : textAfter;
+				note.Colour = undo ? colourBefore : colourAfter;
+				Project.ActiveProject.controller.Select(note, true);
 			}
 		}
 
@@ -404,6 +442,7 @@ namespace DLS.Game
 
 			public PinDescription[] pinDescriptions;
 			public bool[] pinInInputFlags;
+			public NoteDescription[] noteDescriptions;
 			public FullWireState wireStateBeforeDelete;
 
 			public bool isDeleteAction;
@@ -446,6 +485,21 @@ namespace DLS.Game
 					else
 					{
 						if (!devChip.TryDeleteDevPinByID(pinDescription.ID)) throw new Exception("Failed to delete dev pin");
+					}
+				}
+
+				// ---- Handle notes ----
+				foreach (NoteDescription noteDescription in noteDescriptions)
+				{
+					if (addElement)
+					{
+						NoteInstance note = new(noteDescription);
+						devChip.AddNewNote(note);
+						Project.ActiveProject.controller.Select(note, true);
+					}
+					else if (!devChip.TryDeleteNoteByID(noteDescription.ID))
+					{
+						throw new Exception("Failed to delete note");
 					}
 				}
 

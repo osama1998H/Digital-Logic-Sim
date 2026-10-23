@@ -1,4 +1,5 @@
 using System;
+using Newtonsoft.Json;
 using UnityEngine;
 
 namespace DLS.Description
@@ -22,6 +23,8 @@ namespace DLS.Description
 		public SubChipDescription[] SubChips;
 		public WireDescription[] Wires;
 		public DisplayDescription[] Displays;
+		// Optional: left out of the file when the chip has no notes, so chips saved before notes existed are unchanged
+		[JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public NoteDescription[] Notes;
 
 		// ---- Convenience Functions ----
 		public bool HasDisplay() => Displays != null && Displays.Length > 0;

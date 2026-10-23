@@ -140,6 +140,12 @@ namespace DLS.Graphics
 			List<IMoveable> elements = drawSelectedOnly ? controller.SelectedElements : chip.Elements;
 			bool allValidPlacement = true;
 
+			// Notes are drawn first so that they appear underneath chips and pins
+			foreach (IMoveable element in elements)
+			{
+				if (element.IsSelected == drawSelectedOnly && element is NoteInstance note) DrawNote(note);
+			}
+
 			foreach (IMoveable element in elements)
 			{
 				if (element.IsSelected == drawSelectedOnly)
@@ -188,6 +194,35 @@ namespace DLS.Graphics
 						Draw.Quad(element.SelectionBoundingBox.Centre, element.SelectionBoundingBox.Size, boxCol);
 					}
 				}
+			}
+		}
+
+		// (The selection highlight is drawn along with that of the other elements in DrawMoveableElements)
+		public static void DrawNote(NoteInstance note)
+		{
+			const float outlineWidth = 0.02f;
+			Vector2 centre = note.Centre;
+			Vector2 size = note.Size;
+			Color col = GetNoteColour(note.Colour);
+			Color bodyCol = new(col.r, col.g, col.b, NoteAlpha);
+			Color textCol = new(0.12f, 0.12f, 0.12f);
+
+			Draw.Quad(centre, size, bodyCol);
+			Draw.QuadOutline(centre, size, outlineWidth, ColHelper.Darken(col, 0.25f));
+
+			// (Ignored while creating a wire, so that wire points can be placed on top of notes, and wires underneath them can be connected to)
+			if (!controller.IsCreatingWire && InputHelper.MouseInsideBounds_World(centre, size))
+			{
+				InteractionState.NotifyElementUnderMouse(note);
+			}
+
+			// Draw each line separately (left-aligned) so that line positions match the measured size exactly
+			string[] lines = note.Lines;
+			Vector2 firstLinePos = note.Position + new Vector2(NotePadding, -NotePadding - NoteLineHeight / 2);
+			for (int i = 0; i < lines.Length; i++)
+			{
+				if (lines[i].Length == 0) continue;
+				Draw.Text(FontRegular, lines[i], FontSizeNote, firstLinePos + Vector2.down * (NoteLineHeight * i), Anchor.TextCentreLeft, textCol);
 			}
 		}
 

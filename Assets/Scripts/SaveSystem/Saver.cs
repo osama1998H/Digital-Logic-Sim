@@ -89,8 +89,12 @@ namespace DLS.SaveSystem
 
 		public static bool HasUnsavedChanges(ChipDescription lastSaved, ChipDescription current)
 		{
+			// The save version on its own is not a change (otherwise every chip saved by an older version would prompt after a version bump)
+			string currentVersion = current.DLSVersion;
+			current.DLSVersion = lastSaved.DLSVersion;
 			string jsonA = CreateSerializedChipDescription(lastSaved);
 			string jsonB = CreateSerializedChipDescription(current);
+			current.DLSVersion = currentVersion;
 			return !UnsavedChangeDetector.IsEquivalentJson(jsonA, jsonB);
 		}
 

@@ -94,6 +94,15 @@ namespace DLS.Game
 				instance.AddNewDevPin(new DevPinInstance(pinDescription, false), true);
 			}
 
+			// Load notes (left as null when missing, so that chips saved before notes existed don't show unsaved changes)
+			if (description.Notes != null)
+			{
+				foreach (NoteDescription noteDescription in description.Notes)
+				{
+					instance.AddNewNote(new NoteInstance(noteDescription));
+				}
+			}
+
 			// ---- Load wires ----
 			// Wires can fail to load if associated pin was deleted from subchip. This means that wire indices stored in the save data might not line up with our loaded wires list.
 			// So, keep track here of the wires with correct indices (with failed entries just being left as null)
@@ -235,6 +244,12 @@ namespace DLS.Game
 			}
 		}
 
+		// Notes are not part of the simulation
+		public void AddNewNote(NoteInstance note)
+		{
+			AddElement(note);
+		}
+
 		public void AddWire(WireInstance wire, bool isLoading, int insertIndex = -1)
 		{
 			bool insert = insertIndex != -1;
@@ -337,6 +352,11 @@ namespace DLS.Game
 			DeleteWiresAttachedToPin(devPin.Pin);
 			RemoveElement(devPin);
 			Simulator.RemovePin(SimChip, devPin.ID);
+		}
+
+		public void DeleteNote(NoteInstance note)
+		{
+			RemoveElement(note);
 		}
 
 		public void DeleteWire(WireInstance wireToDelete)
@@ -480,13 +500,43 @@ namespace DLS.Game
 			return false;
 		}
 
+		// Delete note with given id (if it exists)
+		public bool TryDeleteNoteByID(int id)
+		{
+			for (int i = 0; i < Elements.Count; i++)
+			{
+				if (Elements[i] is NoteInstance note && note.ID == id)
+				{
+					DeleteNote(note);
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		public bool TryGetNoteByID(int id, out NoteInstance note)
+		{
+			foreach (IMoveable element in Elements)
+			{
+				if (element is NoteInstance n && n.ID == id)
+				{
+					note = n;
+					return true;
+				}
+			}
+
+			note = null;
+			return false;
+		}
+
 		public bool TryGetSubChipByID(int id, out SubChipInstance subchip)
 		{
 			foreach (IMoveable element in Elements)
 			{
-				if (element.ID == id)
+				if (element is SubChipInstance s && s.ID == id)
 				{
-					subchip = (SubChipInstance)element;
+					subchip = s;
 					return true;
 				}
 			}
@@ -606,6 +656,8 @@ namespace DLS.Game
 		}
 
 		public IEnumerable<SubChipInstance> GetSubchips() => Elements.OfType<SubChipInstance>();
+
+		public IEnumerable<NoteInstance> GetNotes() => Elements.OfType<NoteInstance>();
 
 		public IEnumerable<DevPinInstance> GetOutputPins()
 		{
