@@ -20,9 +20,13 @@ namespace DLS.Description
 			// ---- Split / Merge ----
 			{ ChipType.Split_4To1Bit, "4-1BIT" },
 			{ ChipType.Split_8To1Bit, "8-1BIT" },
+			{ ChipType.Split_16To1Bit, "16-1BIT" },
 			{ ChipType.Split_8To4Bit, "8-4BIT" },
+			{ ChipType.Split_16To8Bit, "16-8BIT" },
 			{ ChipType.Merge_4To8Bit, "4-8BIT" },
+			{ ChipType.Merge_8To16Bit, "8-16BIT" },
 			{ ChipType.Merge_1To8Bit, "1-8BIT" },
+			{ ChipType.Merge_1To16Bit, "1-16BIT" },
 			{ ChipType.Merge_1To4Bit, "1-4BIT" },
 
 			// ---- Displays -----
@@ -39,9 +43,11 @@ namespace DLS.Description
 			{ ChipType.In_1Bit, "IN-1" },
 			{ ChipType.In_4Bit, "IN-4" },
 			{ ChipType.In_8Bit, "IN-8" },
+			{ ChipType.In_16Bit, "IN-16" },
 			{ ChipType.Out_1Bit, "OUT-1" },
 			{ ChipType.Out_4Bit, "OUT-4" },
 			{ ChipType.Out_8Bit, "OUT-8" },
+			{ ChipType.Out_16Bit, "OUT-16" },
 			{ ChipType.Key, "KEY" },
 			// ---- Buses ----
 			{ ChipType.Bus_1Bit, "BUS-1" },
@@ -82,6 +88,7 @@ namespace DLS.Description
 					PinBitCount.Bit1 => ChipType.In_1Bit,
 					PinBitCount.Bit4 => ChipType.In_4Bit,
 					PinBitCount.Bit8 => ChipType.In_8Bit,
+					PinBitCount.Bit16 => ChipType.In_16Bit,
 					_ => throw new Exception("No input pin type found for bitcount: " + numBits)
 				};
 			}
@@ -91,6 +98,7 @@ namespace DLS.Description
 				PinBitCount.Bit1 => ChipType.Out_1Bit,
 				PinBitCount.Bit4 => ChipType.Out_4Bit,
 				PinBitCount.Bit8 => ChipType.Out_8Bit,
+				PinBitCount.Bit16 => ChipType.Out_16Bit,
 				_ => throw new Exception("No output pin type found for bitcount: " + numBits)
 			};
 		}
@@ -105,6 +113,8 @@ namespace DLS.Description
 				ChipType.Out_4Bit => (false, true, PinBitCount.Bit4),
 				ChipType.In_8Bit => (true, false, PinBitCount.Bit8),
 				ChipType.Out_8Bit => (false, true, PinBitCount.Bit8),
+				ChipType.In_16Bit => (true, false, PinBitCount.Bit16),
+				ChipType.Out_16Bit => (false, true, PinBitCount.Bit16),
 				_ => (false, false, PinBitCount.Bit1)
 			};
 		}

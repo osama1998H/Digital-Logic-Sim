@@ -337,6 +337,52 @@ namespace DLS.Simulation
 					chip.OutputPins[7].State = (in8 >> 0) & PinState.SingleBitMask;
 					break;
 				}
+				case ChipType.Split_16To8Bit:
+				{
+					uint in16 = chip.InputPins[0].State;
+					// Split into two 8-bit values: high byte and low byte
+					ushort lowByte = (ushort)(in16 & 0xFF);
+					ushort highByte = (ushort)((in16 >> 8) & 0xFF);
+					ushort tristateFlags = (ushort)(in16 >> 16);
+					ushort lowTristate = (ushort)(tristateFlags & 0xFF);
+					ushort highTristate = (ushort)((tristateFlags >> 8) & 0xFF);
+					
+					chip.OutputPins[0].State = (uint)(highByte | (highTristate << 16)); // MSB
+					chip.OutputPins[1].State = (uint)(lowByte | (lowTristate << 16));   // LSB
+					break;
+				}
+				case ChipType.Split_16To1Bit:
+				{
+					uint in16 = chip.InputPins[0].State;
+					for (int i = 0; i < 16; i++)
+					{
+						chip.OutputPins[i].State = (in16 >> (15 - i)) & PinState.SingleBitMask;
+					}
+					break;
+				}
+				case ChipType.Merge_8To16Bit:
+				{
+					uint in8High = chip.InputPins[0].State; // MSB
+					uint in8Low = chip.InputPins[1].State;  // LSB
+					ushort highByte = (ushort)(in8High & 0xFF);
+					ushort lowByte = (ushort)(in8Low & 0xFF);
+					ushort highTristate = (ushort)((in8High >> 16) & 0xFF);
+					ushort lowTristate = (ushort)((in8Low >> 16) & 0xFF);
+					
+					chip.OutputPins[0].State = (uint)(lowByte | (highByte << 8) | (lowTristate << 16) | (highTristate << 24));
+					break;
+				}
+				case ChipType.Merge_1To16Bit:
+				{
+					uint result = 0;
+					for (int i = 0; i < 16; i++)
+					{
+						uint bitState = chip.InputPins[15 - i].State & PinState.SingleBitMask;
+						result |= bitState << i;
+					}
+					chip.OutputPins[0].State = result;
+					break;
+				}
 				case ChipType.TriStateBuffer:
 				{
 					SimPin dataPin = chip.InputPins[0];
