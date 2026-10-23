@@ -63,6 +63,8 @@ namespace DLS.Graphics
 		{
 			MenuType menuToDraw = ActiveMenu; // cache state in case it changes while drawing/updating the menus
 
+			// Docked (not a MenuType, so the canvas above it stays usable); drawn before the bottom bar so its popups overlay it
+			if (TimingDiagramPanel.IsOpen && (menuToDraw is MenuType.None or MenuType.BottomBarMenuPopup)) TimingDiagramPanel.Draw(project);
 			if (menuToDraw != MenuType.ChipCustomization) BottomBarUI.DrawUI(project);
 
 			bool aMenuIsOpen = true;
@@ -160,6 +162,7 @@ namespace DLS.Graphics
 			RomEditMenu.Reset();
 			ChipLibraryMenu.Reset();
 			SearchPopup.Reset();
+			TimingDiagramPanel.Reset();
 		}
 	}
 }

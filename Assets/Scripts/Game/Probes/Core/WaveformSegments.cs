@@ -23,13 +23,21 @@ namespace DLS.Game.Probes
 		public static List<WaveSegment> Build(long[] steps, uint[] values, int count)
 		{
 			List<WaveSegment> segments = new();
-			if (count <= 0) return segments;
+			Build(steps, values, 0, count, segments);
+			return segments;
+		}
 
-			long start = steps[0];
-			long end = steps[0] + 1;
-			uint value = values[0];
+		// Same as above for samples [start, start + count), written into a reused list (cleared first)
+		public static void Build(long[] steps, uint[] values, int start, int count, List<WaveSegment> output)
+		{
+			output.Clear();
+			if (count <= 0) return;
 
-			for (int i = 1; i < count; i++)
+			long segStart = steps[start];
+			long end = segStart + 1;
+			uint value = values[start];
+
+			for (int i = start + 1; i < start + count; i++)
 			{
 				if (steps[i] == end && values[i] == value)
 				{
@@ -37,14 +45,13 @@ namespace DLS.Game.Probes
 					continue;
 				}
 
-				segments.Add(new WaveSegment(start, end, value));
-				start = steps[i];
+				output.Add(new WaveSegment(segStart, end, value));
+				segStart = steps[i];
 				end = steps[i] + 1;
 				value = values[i];
 			}
 
-			segments.Add(new WaveSegment(start, end, value));
-			return segments;
+			output.Add(new WaveSegment(segStart, end, value));
 		}
 	}
 }

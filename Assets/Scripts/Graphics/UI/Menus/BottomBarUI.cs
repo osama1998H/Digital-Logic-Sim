@@ -20,20 +20,22 @@ namespace DLS.Graphics
 
 		const string shortcutTextCol = "<color=#666666ff>";
 
+		// Names are padded to 15 characters so the shortcuts line up ("TIMING DIAGRAM" is the longest)
 		static readonly string[] menuButtonNames =
 		{
-			$"NEW CHIP     {shortcutTextCol}Ctrl+N",
-			$"SAVE CHIP    {shortcutTextCol}Ctrl+S",
-			$"FIND CHIP    {shortcutTextCol}Ctrl+F",
-			$"TIDY WIRES   {shortcutTextCol}Ctrl+T",
-			$"ORGANIZE ALL {shortcutTextCol}Ctrl+Shift+T",
+			$"NEW CHIP       {shortcutTextCol}Ctrl+N",
+			$"SAVE CHIP      {shortcutTextCol}Ctrl+S",
+			$"FIND CHIP      {shortcutTextCol}Ctrl+F",
+			$"TIDY WIRES     {shortcutTextCol}Ctrl+T",
+			$"ORGANIZE ALL   {shortcutTextCol}Ctrl+Shift+T",
 			"STATISTICS",
-			$"TRUTH TABLE  {shortcutTextCol}Ctrl+Shift+Y",
-			$"TEST BENCH   {shortcutTextCol}Ctrl+B",
-			$"EXPRESSION   {shortcutTextCol}Ctrl+Shift+G",
-			$"LIBRARY      {shortcutTextCol}Ctrl+L",
-			$"PREFS        {shortcutTextCol}Ctrl+P",
-			$"QUIT         {shortcutTextCol}Ctrl+Q"
+			$"TRUTH TABLE    {shortcutTextCol}Ctrl+Shift+Y",
+			$"TEST BENCH     {shortcutTextCol}Ctrl+B",
+			$"EXPRESSION     {shortcutTextCol}Ctrl+Shift+G",
+			$"TIMING DIAGRAM {shortcutTextCol}Ctrl+Shift+W",
+			$"LIBRARY        {shortcutTextCol}Ctrl+L",
+			$"PREFS          {shortcutTextCol}Ctrl+P",
+			$"QUIT           {shortcutTextCol}Ctrl+Q"
 		};
 
 		const int NewChipButtonIndex = 0;
@@ -45,9 +47,10 @@ namespace DLS.Graphics
 		const int TruthTableButtonIndex = 6;
 		const int TestBenchButtonIndex = 7;
 		const int ExpressionButtonIndex = 8;
-		const int LibraryButtonIndex = 9;
-		const int OptionsButtonIndex = 10;
-		const int QuitButtonIndex = 11;
+		const int TimingDiagramButtonIndex = 9;
+		const int LibraryButtonIndex = 10;
+		const int OptionsButtonIndex = 11;
+		const int QuitButtonIndex = 12;
 
 		// ---- State ----
 		static float scrollX;
@@ -97,7 +100,7 @@ namespace DLS.Graphics
 			{
 				for (int i = menuButtonNames.Length - 1; i >= 0; i--)
 				{
-					bool buttonEnabled = MenuButtonsAndShortcutsEnabled || i is QuitButtonIndex or OptionsButtonIndex;
+					bool buttonEnabled = MenuButtonsAndShortcutsEnabled || i is QuitButtonIndex or OptionsButtonIndex or TimingDiagramButtonIndex;
 					string text = menuButtonNames[i];
 					if (UI.Button(text, theme, pos, size, buttonEnabled, false, false, Anchor.BottomLeft))
 					{
@@ -136,6 +139,7 @@ namespace DLS.Graphics
 				else if (i == TruthTableButtonIndex) OpenTruthTable();
 				else if (i == TestBenchButtonIndex) OpenTestBench();
 				else if (i == ExpressionButtonIndex) ExpressionMenu.Open();
+				else if (i == TimingDiagramButtonIndex) TimingDiagramPanel.Toggle();
 				else if (i == LibraryButtonIndex) OpenLibraryMenu();
 				else if (i == OptionsButtonIndex) OpenPreferencesMenu();
 				else if (i == QuitButtonIndex) ExitToMainMenu();
@@ -448,6 +452,8 @@ namespace DLS.Graphics
 				if (KeyboardShortcuts.ExpressionShortcutTriggered) ExpressionMenu.Open();
 			}
 
+			// Also available while viewing a subchip: the panel keeps showing the edited chip's probes
+			if (KeyboardShortcuts.TimingDiagramShortcutTriggered) TimingDiagramPanel.Toggle();
 			if (KeyboardShortcuts.PreferencesShortcutTriggered) OpenPreferencesMenu();
 			if (KeyboardShortcuts.QuitToMainMenuShortcutTriggered) ExitToMainMenu();
 		}

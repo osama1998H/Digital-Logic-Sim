@@ -4,6 +4,7 @@ using System.Linq;
 using DLS.Description;
 using DLS.Game;
 using DLS.Game.Editing;
+using DLS.Game.Probes;
 using Seb.Helpers;
 using Seb.Types;
 using Seb.Vis;
@@ -43,6 +44,10 @@ namespace DLS.Graphics
 		static readonly MenuEntry truthTableEntry = new(Format("TRUTH TABLE"), OpenTruthTableForSubChip, () => true);
 
 		static readonly MenuEntry testBenchEntry = new(Format("TEST BENCH"), OpenTestBenchForSubChip, () => true);
+
+		static readonly string probeText = Format("PROBE");
+		static readonly string removeProbeText = Format("REMOVE PROBE");
+		static readonly MenuEntry probeEntry = new(() => IsTargetProbed() ? removeProbeText : probeText, ToggleProbe, CanToggleProbe);
 
 		static readonly MenuEntry[] entries_customSubchip =
 		{
@@ -105,11 +110,15 @@ namespace DLS.Graphics
 		};
 
 
-		static readonly MenuEntry[] entries_subChipOutput = pinColEntries;
+		static readonly MenuEntry[] entries_subChipOutput = new[] { probeEntry, dividerMenuEntry }.Concat(pinColEntries).ToArray();
+
+		// Subchip input pins have nothing else to set, so the menu only offers probing
+		static readonly MenuEntry[] entries_subChipInput = { probeEntry };
 
 		static readonly MenuEntry[] entries_inputDevPin = new[]
 		{
 			new(Format("EDIT"), OpenPinEditMenu, CanEditCurrentChip),
+			probeEntry,
 			new(Format("DELETE"), Delete, CanDelete),
 			dividerMenuEntry
 		}.Concat(pinColEntries).ToArray();
@@ -117,12 +126,14 @@ namespace DLS.Graphics
 		static readonly MenuEntry[] entries_outputDevPin =
 		{
 			entries_inputDevPin[0],
-			entries_inputDevPin[1]
+			entries_inputDevPin[1],
+			entries_inputDevPin[2]
 		};
 
 		static readonly MenuEntry[] entries_wire =
 		{
 			new(Format("EDIT"), EditWire, CanEditWire),
+			probeEntry,
 			new(Format("DELETE"), Delete, CanDelete)
 		};
 
@@ -233,8 +244,9 @@ namespace DLS.Graphics
 				bool openDevPinContextMenu = (hoverElement is PinInstance pin && pin.parent is DevPinInstance) || hoverElement is DevPinInstance;
 				bool openWireContextMenu = hoverElement is WireInstance;
 				bool openSubchipOutputPinContextMenu = hoverElement is PinInstance pin2 && pin2.parent is SubChipInstance && pin2.IsSourcePin && !pin2.IsBusPin;
+				bool openSubchipInputPinContextMenu = hoverElement is PinInstance pin3 && pin3.parent is SubChipInstance && !pin3.IsSourcePin && !pin3.IsBusPin && !inCustomizeMenu;
 
-				if (openSubChipContextMenu || openDevPinContextMenu || openWireContextMenu || openSubchipOutputPinContextMenu)
+				if (openSubChipContextMenu || openDevPinContextMenu || openWireContextMenu || openSubchipOutputPinContextMenu || openSubchipInputPinContextMenu)
 				{
 					interactionContextName = string.Empty;
 					interactionContext = hoverElement;
@@ -286,6 +298,12 @@ namespace DLS.Graphics
 						PinInstance pinContext = (PinInstance)interactionContext;
 						headerName = CreatePinHeaderName(pinContext.Name);
 						activeContextMenuEntries = entries_subChipOutput;
+					}
+					else if (openSubchipInputPinContextMenu)
+					{
+						PinInstance pinContext = (PinInstance)interactionContext;
+						headerName = CreatePinHeaderName(pinContext.Name);
+						activeContextMenuEntries = entries_subChipInput;
 					}
 
 					SetContextMenuOpen(headerName);
@@ -516,6 +534,35 @@ namespace DLS.Graphics
 		static void EnterViewMode() => Project.ActiveProject.EnterViewMode(interactionContext as SubChipInstance);
 
 		static bool CanDelete() => Project.ActiveProject.CanEditViewedChip;
+
+		// A wire is probed at its source pin
+		static PinInstance ProbeTargetPin() => interactionContext switch
+		{
+			WireInstance wire => wire.SourcePin,
+			PinInstance pin => pin,
+			_ => null
+		};
+
+		static bool IsTargetProbed()
+		{
+			PinInstance pin = ProbeTargetPin();
+			return pin != null && ProbeSet.IsProbed(pin);
+		}
+
+		static bool CanToggleProbe()
+		{
+			PinInstance pin = ProbeTargetPin();
+			if (pin == null || !ProbeSet.CanProbe || UIDrawer.ActiveMenu == UIDrawer.MenuType.ChipCustomization) return false;
+			return ProbeSet.IsProbed(pin) || ProbeSet.Probes.Count < ProbeSet.MaxProbes;
+		}
+
+		static void ToggleProbe()
+		{
+			PinInstance pin = ProbeTargetPin();
+			if (pin == null) return;
+			// Open the panel when adding, so the new waveform is visible straight away
+			if (ProbeSet.Toggle(pin)) TimingDiagramPanel.Open();
+		}
 		static bool CanFlipBus() => Project.ActiveProject.CanEditViewedChip;
 
 		static bool CanSetCol()
@@ -634,13 +681,25 @@ namespace DLS.Graphics
 
 		public readonly struct MenuEntry
 		{
-			public readonly string Text;
+			readonly string text;
+			readonly Func<string> getText; // for entries whose text depends on state (e.g. Probe / Remove probe)
 			public readonly Action OnPress;
 			public readonly Func<bool> IsEnabled;
 
+			public string Text => getText != null ? getText() : text;
+
 			public MenuEntry(string text, Action onPress, Func<bool> isEnabled)
 			{
-				Text = text;
+				this.text = text;
+				getText = null;
+				OnPress = onPress;
+				IsEnabled = isEnabled;
+			}
+
+			public MenuEntry(Func<string> getText, Action onPress, Func<bool> isEnabled)
+			{
+				text = null;
+				this.getText = getText;
 				OnPress = onPress;
 				IsEnabled = isEnabled;
 			}

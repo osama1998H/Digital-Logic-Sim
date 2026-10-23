@@ -189,6 +189,81 @@ namespace LayoutTests
 			AssertSeg(segs[0], 4, 5, 2);
 		}
 
+		[Test]
+		public void Segments_BuildIntoReusesListAndHonoursStart()
+		{
+			long[] steps = { 1, 2, 3, 4, 5, 6 };
+			uint[] vals = { 9, 9, 7, 7, 7, 1 };
+			List<WaveSegment> output = new() { new WaveSegment(0, 1, 0) };
+			WaveformSegments.Build(steps, vals, 1, 4, output);
+
+			Assert.That(output.Count, Is.EqualTo(2));
+			AssertSeg(output[0], 2, 3, 9);
+			AssertSeg(output[1], 3, 6, 7);
+
+			WaveformSegments.Build(steps, vals, 0, 0, output);
+			Assert.That(output.Count, Is.EqualTo(0));
+		}
+
+		[Test]
+		public void View_ZoomClampsToRange()
+		{
+			Assert.That(WaveformView.ClampZoom(0.2f), Is.EqualTo(WaveformView.MinPxPerStep));
+			Assert.That(WaveformView.ClampZoom(500), Is.EqualTo(WaveformView.MaxPxPerStep));
+			Assert.That(WaveformView.Zoom(8, 1), Is.GreaterThan(8f));
+			Assert.That(WaveformView.Zoom(8, -1), Is.LessThan(8f));
+			Assert.That(WaveformView.Zoom(64, 10), Is.EqualTo(64f));
+			Assert.That(WaveformView.Zoom(1, -10), Is.EqualTo(1f));
+			Assert.That(WaveformView.Zoom(8, 0), Is.EqualTo(8f));
+		}
+
+		[Test]
+		public void View_MonotonicStartSkipsBeforeBackwardJump()
+		{
+			Assert.That(WaveformView.MonotonicStart(new long[] { 5, 6, 7 }, 3), Is.EqualTo(0));
+			Assert.That(WaveformView.MonotonicStart(new long[] { 90, 91, 0, 1, 2 }, 5), Is.EqualTo(2));
+			Assert.That(WaveformView.MonotonicStart(new long[] { 1, 2, 9, 3 }, 3), Is.EqualTo(0)); // only the first 3 count
+			Assert.That(WaveformView.MonotonicStart(new long[0], 0), Is.EqualTo(0));
+		}
+
+		[Test]
+		public void View_LowerBoundAndIndexOfStep()
+		{
+			long[] steps = { 10, 11, 12, 20, 21 };
+			Assert.That(WaveformView.LowerBound(steps, 0, 5, 0), Is.EqualTo(0));
+			Assert.That(WaveformView.LowerBound(steps, 0, 5, 12), Is.EqualTo(2));
+			Assert.That(WaveformView.LowerBound(steps, 0, 5, 13), Is.EqualTo(3));
+			Assert.That(WaveformView.LowerBound(steps, 0, 5, 99), Is.EqualTo(5));
+			Assert.That(WaveformView.LowerBound(steps, 2, 5, 10), Is.EqualTo(2));
+
+			Assert.That(WaveformView.IndexOfStep(steps, 0, 5, 20), Is.EqualTo(3));
+			Assert.That(WaveformView.IndexOfStep(steps, 0, 5, 15), Is.EqualTo(-1)); // gap
+			Assert.That(WaveformView.IndexOfStep(steps, 0, 5, 22), Is.EqualTo(-1));
+			Assert.That(WaveformView.IndexOfStep(steps, 1, 5, 10), Is.EqualTo(-1)); // before start
+		}
+
+		[Test]
+		public void View_PanIsClampedToHistory()
+		{
+			// 100 samples (steps 0..99), 30 visible: can go back at most 70
+			Assert.That(WaveformView.ClampPan(-5, 0, 99, 30), Is.EqualTo(0));
+			Assert.That(WaveformView.ClampPan(40, 0, 99, 30), Is.EqualTo(40));
+			Assert.That(WaveformView.ClampPan(500, 0, 99, 30), Is.EqualTo(70));
+			// Less history than fits on screen: no panning
+			Assert.That(WaveformView.ClampPan(10, 0, 9, 30), Is.EqualTo(0));
+		}
+
+		[Test]
+		public void View_StepAtDistanceFromRightEdge()
+		{
+			// Step 100 occupies the 8 px left of the right edge
+			Assert.That(WaveformView.StepAtDistanceFromRight(100, 0.5, 8), Is.EqualTo(100));
+			Assert.That(WaveformView.StepAtDistanceFromRight(100, 7.9, 8), Is.EqualTo(100));
+			Assert.That(WaveformView.StepAtDistanceFromRight(100, 8, 8), Is.EqualTo(99));
+			Assert.That(WaveformView.StepAtDistanceFromRight(100, 80.1, 8), Is.EqualTo(90));
+			Assert.That(WaveformView.StepAtDistanceFromRight(100, -1, 8), Is.EqualTo(100));
+		}
+
 		static void AssertSeg(WaveSegment s, long start, long end, uint value)
 		{
 			Assert.That(s.StartStep, Is.EqualTo(start));
