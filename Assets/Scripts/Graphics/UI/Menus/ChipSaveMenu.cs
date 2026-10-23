@@ -1,6 +1,7 @@
 using System;
 using DLS.Description;
 using DLS.Game;
+using DLS.Game.Layout;
 using DLS.SaveSystem;
 using Seb.Types;
 using Seb.Vis;
@@ -40,6 +41,10 @@ namespace DLS.Graphics
 
 		public static void OnMenuOpened()
 		{
+			int organizeOnSave = Project.ActiveProject.description.Prefs_OrganizeOnSave;
+			if (organizeOnSave == 1) ChipOrganizer.TidyWires(Project.ActiveProject.ViewedChip);
+			else if (organizeOnSave == 2) ChipOrganizer.OrganizeAll(Project.ActiveProject.ViewedChip);
+
 			ActiveCustomizeChip ??= CreateCustomizationState();
 			InitUIFromDescription(ActiveCustomizeChip.Description);
 		}
