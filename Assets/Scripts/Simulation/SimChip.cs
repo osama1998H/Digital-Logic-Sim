@@ -82,6 +82,12 @@ namespace DLS.Simulation
 					InternalState[i] = BitConverter.ToUInt32(randomBytes);
 				}
 			}
+			else if (ChipType is ChipType.Ram_256x8 && internalState is not { Length: DLS.Game.Memory.RamLogic.StateLength })
+			{
+				// Library description has no instance data (e.g. test bench): start with empty memory
+				InternalState = new uint[DLS.Game.Memory.RamLogic.StateLength];
+				if (internalState != null) Array.Copy(internalState, InternalState, Math.Min(internalState.Length, DLS.Game.Memory.RamLogic.WordCount));
+			}
 			// Load in serialized persistent state (rom data, etc.)
 			else if (internalState is { Length: > 0 })
 			{

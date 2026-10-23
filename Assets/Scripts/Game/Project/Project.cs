@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using DLS.Description;
 using DLS.Game.Probes;
+using DLS.Game.Memory;
 using DLS.Graphics;
 using DLS.SaveSystem;
 using DLS.Simulation;
@@ -352,7 +353,7 @@ namespace DLS.Game
 		{
 			SimChip simChip = rootSimChip.GetSubChipFromID(romChip.ID);
 			// RAM keeps its previous-clock slot (index 256) untouched so editing while CLOCK is high can't cause a spurious write
-			if (romChip.ChipType == ChipType.Ram_256x8) Array.Copy(romChip.InternalData, simChip.InternalState, 256);
+			if (romChip.ChipType == ChipType.Ram_256x8) Array.Copy(romChip.InternalData, simChip.InternalState, RamLogic.WordCount);
 			else simChip.UpdateInternalState(romChip.InternalData);
 		}
 

@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using DLS.Description;
 using DLS.Game;
+using DLS.Game.Memory;
 using DLS.Simulation;
 using Seb.Helpers;
 using Seb.Types;
@@ -365,8 +366,8 @@ namespace DLS.Graphics
 		public static void OnMenuOpened()
 		{
 			romChip = (SubChipInstance)ContextMenu.interactionContext;
-			isRam = ChipTypeHelper.IsRamType(romChip.ChipType);
-			RowCount = isRam ? 256 : romChip.InternalData.Length; // RAM data has an extra slot after the 256 cells (previous clock level)
+			isRam = romChip.ChipType == ChipType.Ram_256x8;
+			RowCount = isRam ? RamLogic.WordCount : romChip.InternalData.Length; // RAM data has an extra slot after the 256 cells (previous clock level)
 			ActiveRomDataBitCount = isRam ? 8 : 16;
 
 			ID_DataDisplayMode = new UIHandle("ROM_DataDisplayMode", romChip.ID);
