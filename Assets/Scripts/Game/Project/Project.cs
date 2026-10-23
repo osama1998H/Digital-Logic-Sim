@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using DLS.Description;
+using DLS.Game.Probes;
 using DLS.Graphics;
 using DLS.SaveSystem;
 using DLS.Simulation;
@@ -308,6 +309,8 @@ namespace DLS.Game
 			{
 				CreateBlankDevChip();
 			}
+
+			ProbeSet.OnViewedChipChanged(chipName);
 		}
 
 		void SetNewActiveDevChip(DevChipInstance devChip)
@@ -629,6 +632,7 @@ namespace DLS.Game
 					SimChip simChip = rootSimChip;
 					if (simChip == null) continue; // Could potentially be null for a frame when switching between chips
 					Simulator.RunSimulationStep(simChip, inputPins, audioState.simAudio);
+					ProbeRecorder.Record(simChip, Simulator.simulationFrame);
 
 					// ---- Update perf counter (measures average num ticks over last n seconds) ----
 					long elapsedMsTotal = stopwatchTotal.ElapsedMilliseconds;
@@ -672,6 +676,7 @@ namespace DLS.Game
 			Simulator.ApplyModifications();
 			Simulator.RunEvaluationJobs(4);
 			Simulator.RunSimulationStep(rootSimChip, inputPins, audioState.simAudio);
+			ProbeRecorder.Record(rootSimChip, Simulator.simulationFrame);
 			ViewedChip.UpdateStateFromSim(ViewedSimChip, !CanEditViewedChip);
 		}
 

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using DLS.Description;
+using DLS.Game.Probes;
 using DLS.Game.Editing;
 using DLS.Graphics;
 using DLS.SaveSystem;
@@ -130,6 +131,7 @@ namespace DLS.Game
 			{
 				if (element is SubChipInstance subChip) ActiveDevChip.DeleteSubChip(subChip);
 				else if (element is DevPinInstance devPin) ActiveDevChip.DeleteDevPin(devPin);
+				ProbeSet.RemoveProbesOwnedBy(element.ID);
 			}
 
 			if (clearSelection) SelectedElements.Clear();

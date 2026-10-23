@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using DLS.Description;
+using DLS.Game.Probes;
 using DLS.Graphics;
 using DLS.SaveSystem;
 using UnityEngine;
@@ -67,6 +68,7 @@ namespace DLS.Game
 			if (Loader.ProjectExists(projectName)) ActiveProject = LoadProject(projectName);
 			else ActiveProject = CreateProject(projectName);
 
+			ProbeSet.ResetAll();
 			ActiveProject.LoadDevChipOrCreateNewIfDoesntExist(startupChipName);
 			ActiveProject.StartSimulation();
 			ActiveProject.audioState = audioState;
