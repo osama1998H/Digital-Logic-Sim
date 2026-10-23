@@ -1,6 +1,8 @@
 using System;
 using System.Text;
+using DLS.Description;
 using DLS.Game;
+using DLS.Simulation;
 using Seb.Helpers;
 using Seb.Types;
 using Seb.Vis;
@@ -13,6 +15,7 @@ namespace DLS.Graphics
 	{
 		static int ActiveRomDataBitCount;
 		static int RowCount;
+		static bool isRam;
 
 		static UIHandle ID_scrollbar;
 		static UIHandle ID_DataDisplayMode;
@@ -48,6 +51,7 @@ namespace DLS.Graphics
 
 			// ---- Draw ROM contents ----
 			scrollViewBounds = Bounds2D.CreateFromCentreAndSize(UI.Centre, new Vector2(UI.Width * 0.4f, UI.Height * 0.8f));
+			UI.DrawText(isRam ? "EDIT RAM CONTENTS" : "EDIT ROM CONTENTS", MenuHelper.Theme.FontBold, MenuHelper.Theme.FontSizeRegular, scrollViewBounds.TopLeft + Vector2.up * 0.6f, Anchor.TextCentreLeft, Color.white);
 
 			ScrollViewTheme scrollTheme = DrawSettings.ActiveUITheme.ScrollTheme;
 			UI.DrawScrollView(ID_scrollbar, scrollViewBounds.TopLeft, scrollViewBounds.Size, 0, Anchor.TopLeft, scrollTheme, scrollViewDrawElementFunc, RowCount);
@@ -89,6 +93,13 @@ namespace DLS.Graphics
 				int copyPasteButtonIndex = MenuHelper.DrawButtonPair("COPY ALL", "PASTE ALL", buttonTopleft, sidePanelSize.x, false);
 				buttonTopleft = UI.PrevBounds.BottomLeft + Vector2.down * buttonSpacing;
 				bool clearAll = UI.Button("CLEAR ALL", MenuHelper.Theme.ButtonTheme, buttonTopleft, new Vector2(sidePanelSize.x, 0), true, false, true, Anchor.TopLeft);
+				bool loadLive = false;
+				if (isRam)
+				{
+					buttonTopleft = UI.PrevBounds.BottomLeft + Vector2.down * buttonSpacing;
+					loadLive = UI.Button("LOAD LIVE", MenuHelper.Theme.ButtonTheme, buttonTopleft, new Vector2(sidePanelSize.x, 0), true, false, true, Anchor.TopLeft);
+				}
+
 				buttonTopleft = UI.PrevBounds.BottomLeft + Vector2.down * (buttonSpacing * 2f);
 				MenuHelper.CancelConfirmResult result = MenuHelper.DrawCancelConfirmButtons(buttonTopleft, sidePanelSize.x, false, false);
 
@@ -98,6 +109,7 @@ namespace DLS.Graphics
 				if (copyPasteButtonIndex == 0) CopyAll();
 				else if (copyPasteButtonIndex == 1) PasteAll();
 				else if (clearAll) ClearAll();
+				else if (loadLive) LoadLive();
 
 				if (result == MenuHelper.CancelConfirmResult.Cancel || KeyboardShortcuts.CancelShortcutTriggered)
 				{
@@ -174,6 +186,19 @@ namespace DLS.Graphics
 			{
 				InputFieldState state = UI.GetInputFieldState(IDS_inputRow[i]);
 				state.SetText("0", state.focused);
+			}
+		}
+
+		// Fill the fields from the live simulated memory (display only; the saved contents change only on confirm)
+		static void LoadLive()
+		{
+			(bool found, SimChip simChip) = Project.ActiveProject.ViewedChip.SimChip.TryGetSubChipFromID(romChip.ID);
+			if (!found) return;
+
+			for (int i = 0; i < RowCount; i++)
+			{
+				InputFieldState state = UI.GetInputFieldState(IDS_inputRow[i]);
+				state.SetText(UIntToDisplayString(simChip.InternalState[i], dataDisplayMode, ActiveRomDataBitCount), state.focused);
 			}
 		}
 
@@ -340,8 +365,9 @@ namespace DLS.Graphics
 		public static void OnMenuOpened()
 		{
 			romChip = (SubChipInstance)ContextMenu.interactionContext;
-			RowCount = romChip.InternalData.Length;
-			ActiveRomDataBitCount = 16; //
+			isRam = ChipTypeHelper.IsRamType(romChip.ChipType);
+			RowCount = isRam ? 256 : romChip.InternalData.Length; // RAM data has an extra slot after the 256 cells (previous clock level)
+			ActiveRomDataBitCount = isRam ? 8 : 16;
 
 			ID_DataDisplayMode = new UIHandle("ROM_DataDisplayMode", romChip.ID);
 			ID_scrollbar = new UIHandle("ROM_EditScrollbar", romChip.ID);

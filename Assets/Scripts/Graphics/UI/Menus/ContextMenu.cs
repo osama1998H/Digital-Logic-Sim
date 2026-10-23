@@ -102,6 +102,15 @@ namespace DLS.Graphics
 			deleteEntry
 		};
 
+		static readonly MenuEntry[] entries_builtinRamSubchip =
+		{
+			new(Format("EDIT"), OpenRomEditMenu, CanEditCurrentChip),
+			testBenchEntry,
+			labelChipEntry,
+			selectSameEntry,
+			deleteEntry
+		};
+
 		static readonly MenuEntry[] entries_builtinPulseChip =
 		{
 			new(Format("EDIT"), OpenPulseEditMenu, CanEditCurrentChip),
@@ -267,6 +276,7 @@ namespace DLS.Graphics
 							headerName = ChipTypeHelper.IsBusType(subChip.ChipType) ? "BUS" : subChip.Description.Name;
 							if (subChip.ChipType is ChipType.Key) activeContextMenuEntries = entries_builtinKeySubchip;
 							else if (ChipTypeHelper.IsRomType(subChip.ChipType)) activeContextMenuEntries = entries_builtinRomSubchip;
+							else if (subChip.ChipType == ChipType.Ram_256x8) activeContextMenuEntries = entries_builtinRamSubchip;
 							else if (subChip.ChipType is ChipType.Pulse) activeContextMenuEntries = entries_builtinPulseChip;
 							else if (ChipTypeHelper.IsBusType(subChip.ChipType)) activeContextMenuEntries = entries_builtinBus;
 							else if (subChip.ChipType == ChipType.DisplayLED) activeContextMenuEntries = entries_builtinLED;

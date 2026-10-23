@@ -79,6 +79,9 @@ Precedence is NOT, then AND, then XOR, then OR, so `A + B*C ^ D` means `A + ((B*
 
 **Gates:** with **Use my gates** (the default), library chips named `NOT`, `AND`, `OR` or `XOR` (any case) are used when they have the right pins (1 or 2 one-bit inputs, one 1-bit output) and their truth table is correct. Any gate that is missing or fails this check is built from `NAND` chips. **NAND only** builds everything from `NAND`. Identical sub-expressions share one gate.
 
+### RAM chip
+- **RAM 256×8** (MEMORY collection): a built-in 256-byte memory with `ADDRESS`, `DATA`, `WRITE`, `RESET` and `CLOCK` inputs and an `OUT` output. Reads are immediate; a rising clock edge writes (or clears everything if `RESET` is high). Right-click → **EDIT** sets the starting contents (8-bit values, same editor as the ROM). **LOAD LIVE** copies the current simulated memory into the editor.
+
 ### Timing diagram
 Right-click a pin, a wire (it probes the wire's source pin) or a chip's input or output pin and choose **Probe** to follow its value over time. The **TIMING DIAGRAM** panel (bottom-bar menu or **Ctrl+Shift+W**) is docked above the bottom bar and shows about the last 4000 simulation steps, newest on the right. 1-bit signals are drawn as high/low lines (floating as a grey middle line), and multi-bit signals as boxes with their hex value. Move the mouse over the panel to see the value of every probe at that step. The mouse wheel zooms; while the simulation is paused, **Shift + wheel** scrolls back in time, and each Space press adds one step. **CLEAR** resets the history. Up to 12 probes per chip; they are kept for the session (not saved) and disappear when the probed item is deleted (deleting a probed wire keeps the probe on its source pin). Adding or removing probes keeps the existing history. Choose **Remove probe** to stop probing.
 
@@ -90,6 +93,7 @@ Right-click a pin, a wire (it probes the wire's source pin) or a chip's input or
 - **Chip caching** ([#507](https://github.com/SebLague/Digital-Logic-Sim/pull/507)): small chips made only of logic gates (no memory or clock) are simulated with a precomputed lookup table, which is much faster. Larger chips can be cached manually in the chip customization menu. A popup shows progress while a cache is built.
 
 ## Fixes
+- **Dev RAM no longer outputs random high bits.**
 - **Simulation could freeze while caching.** Caches are now cleared safely, cache building pauses while a menu is open, and the 24-input-bit limit for manually cached chips is enforced. Unexpected errors in the simulation are logged instead of silently stopping it.
 - **Caching fixes:** chips containing an RTC are no longer cached, and the new 16-bit split/merge chips are handled correctly.
 - **CPU use:** the simulation sleeps between steps instead of keeping a CPU core fully busy.

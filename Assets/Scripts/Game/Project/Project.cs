@@ -351,7 +351,9 @@ namespace DLS.Game
 		public void NotifyRomContentsEdited(SubChipInstance romChip)
 		{
 			SimChip simChip = rootSimChip.GetSubChipFromID(romChip.ID);
-			simChip.UpdateInternalState(romChip.InternalData);
+			// RAM keeps its previous-clock slot (index 256) untouched so editing while CLOCK is high can't cause a spurious write
+			if (romChip.ChipType == ChipType.Ram_256x8) Array.Copy(romChip.InternalData, simChip.InternalState, 256);
+			else simChip.UpdateInternalState(romChip.InternalData);
 		}
 
 		public void NotifyLEDColourChanged(SubChipInstance ledChip, uint colIndex)
