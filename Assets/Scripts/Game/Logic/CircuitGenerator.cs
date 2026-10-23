@@ -37,49 +37,58 @@ namespace DLS.Game.Logic
 			project.controller.CancelEverything();
 
 			List<IMoveable> added = new();
-			PinDescription inputTemplate = library.GetChipDescription(ChipTypeHelper.GetName(ChipType.In_1Bit)).InputPins[0];
-			PinDescription outputTemplate = library.GetChipDescription(ChipTypeHelper.GetName(ChipType.Out_1Bit)).OutputPins[0];
-
-			// Input pins, A at the top
-			int inputCount = netlist.InputNames.Length;
-			PinInstance[] netSources = new PinInstance[inputCount + netlist.Gates.Count];
-			for (int i = 0; i < inputCount; i++)
+			try
 			{
-				DevPinInstance pin = AddDevPin(chip, inputTemplate, netlist.InputNames[i], new Vector2(0, ColumnY(inputCount, i)), true, added);
-				netSources[i] = pin.Pin;
-			}
+				PinDescription inputTemplate = library.GetChipDescription(ChipTypeHelper.GetName(ChipType.In_1Bit)).InputPins[0];
+				PinDescription outputTemplate = library.GetChipDescription(ChipTypeHelper.GetName(ChipType.Out_1Bit)).OutputPins[0];
 
-			// Gates (in topological order, so every input net already has a source pin). Temporary positions by depth; the placer moves them.
-			int[] netDepth = new int[netSources.Length];
-			List<int> rowsAtDepth = new();
-			foreach (Gate gate in netlist.Gates)
-			{
-				int depth = 1;
-				foreach (int net in gate.InputNets) depth = Mathf.Max(depth, netDepth[net] + 1);
-				netDepth[gate.OutputNet] = depth;
-				while (rowsAtDepth.Count <= depth) rowsAtDepth.Add(0);
-				Vector2 tempPos = new(depth * TempColumnSpacing, -rowsAtDepth[depth]++ * TempRowSpacing);
-
-				ChipDescription desc = library.GetChipDescription(gates.ChipNameFor(gate.Kind));
-				int id = IDGenerator.GenerateNewElementID(chip);
-				SubChipInstance subChip = new(desc, DescriptionCreator.CreateBuiltinSubChipDescriptionForPlacement(desc.ChipType, desc.Name, id, tempPos));
-				chip.AddNewSubChip(subChip, false);
-				added.Add(subChip);
-
-				netSources[gate.OutputNet] = FindPin(subChip.OutputPins, gates.OutputPinId(gate.Kind));
-				int[] inputPinIds = gates.InputPinIds(gate.Kind);
-				for (int k = 0; k < gate.InputNets.Length; k++)
+				// Input pins, A at the top
+				int inputCount = netlist.InputNames.Length;
+				PinInstance[] netSources = new PinInstance[inputCount + netlist.Gates.Count];
+				for (int i = 0; i < inputCount; i++)
 				{
-					AddWire(chip, netSources[gate.InputNets[k]], FindPin(subChip.InputPins, inputPinIds[k]));
+					DevPinInstance pin = AddDevPin(chip, inputTemplate, netlist.InputNames[i], new Vector2(0, ColumnY(inputCount, i)), true, added);
+					netSources[i] = pin.Pin;
+				}
+
+				// Gates (in topological order, so every input net already has a source pin). Temporary positions by depth; the placer moves them.
+				int[] netDepth = new int[netSources.Length];
+				List<int> rowsAtDepth = new();
+				foreach (Gate gate in netlist.Gates)
+				{
+					int depth = 1;
+					foreach (int net in gate.InputNets) depth = Mathf.Max(depth, netDepth[net] + 1);
+					netDepth[gate.OutputNet] = depth;
+					while (rowsAtDepth.Count <= depth) rowsAtDepth.Add(0);
+					Vector2 tempPos = new(depth * TempColumnSpacing, -rowsAtDepth[depth]++ * TempRowSpacing);
+
+					ChipDescription desc = library.GetChipDescription(gates.ChipNameFor(gate.Kind));
+					int id = IDGenerator.GenerateNewElementID(chip);
+					SubChipInstance subChip = new(desc, DescriptionCreator.CreateBuiltinSubChipDescriptionForPlacement(desc.ChipType, desc.Name, id, tempPos));
+					chip.AddNewSubChip(subChip, false);
+					added.Add(subChip);
+
+					netSources[gate.OutputNet] = FindPin(subChip.OutputPins, gates.OutputPinId(gate.Kind));
+					int[] inputPinIds = gates.InputPinIds(gate.Kind);
+					for (int k = 0; k < gate.InputNets.Length; k++)
+					{
+						AddWire(chip, netSources[gate.InputNets[k]], FindPin(subChip.InputPins, inputPinIds[k]));
+					}
+				}
+
+				// Output pins, in equation order from the top
+				int outputCount = netlist.OutputNames.Length;
+				for (int o = 0; o < outputCount; o++)
+				{
+					DevPinInstance pin = AddDevPin(chip, outputTemplate, netlist.OutputNames[o], new Vector2(OutputPinX, ColumnY(outputCount, o)), false, added);
+					AddWire(chip, netSources[netlist.OutputNets[o]], pin.Pin);
 				}
 			}
-
-			// Output pins, in equation order from the top
-			int outputCount = netlist.OutputNames.Length;
-			for (int o = 0; o < outputCount; o++)
+			catch (Exception e)
 			{
-				DevPinInstance pin = AddDevPin(chip, outputTemplate, netlist.OutputNames[o], new Vector2(OutputPinX, ColumnY(outputCount, o)), false, added);
-				AddWire(chip, netSources[netlist.OutputNets[o]], pin.Pin);
+				// Keep "one undo step removes everything" true even for a half-built circuit
+				if (added.Count > 0) chip.UndoController.RecordAddElements(added, true);
+				return "Generation failed: " + e.Message;
 			}
 
 			// A failed layout still leaves a working circuit (with straight wires), so it isn't an error
