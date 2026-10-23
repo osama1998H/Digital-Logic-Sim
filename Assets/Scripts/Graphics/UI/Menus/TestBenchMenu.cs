@@ -17,6 +17,7 @@ namespace DLS.Graphics
 	public static class TestBenchMenu
 	{
 		const string Header = "# A=1 B=0 -> Y=1   (inputs -> expected outputs; lines without -> only set inputs)";
+		const string Header2 = "# Memory (latches, registers) starts in an arbitrary state - begin sequential tests with a reset or store line.";
 		const string FillConfirmText = "CONFIRM REPLACE?";
 		const int MaxLineLength = 120;
 		const int MaxLines = 500;
@@ -42,6 +43,8 @@ namespace DLS.Graphics
 		static bool fillConfirmPending;
 		// Set when the saved test file couldn't be read: nothing is saved until the lines differ from what was shown on opening
 		static bool loadFailed;
+		static bool pasteConfirmPending;
+		static int currentLineLength;
 		static string loadedSnapshot;
 		static Bounds2D scrollViewBounds;
 		static float statusCellWidth;
@@ -71,6 +74,7 @@ namespace DLS.Graphics
 			resultTexts = null;
 			resultLines = null;
 			fillConfirmPending = false;
+			pasteConfirmPending = false;
 			loadFailed = false;
 			loadedSnapshot = null;
 			focusedRow = -1;
@@ -95,6 +99,7 @@ namespace DLS.Graphics
 				if (lines.Count == 0)
 				{
 					lines.Add(Header);
+					lines.Add(Header2);
 					lines.Add(string.Empty);
 				}
 
@@ -118,6 +123,12 @@ namespace DLS.Graphics
 			if (!isOpen) return;
 			isOpen = false;
 			SaveLines(ReadLines());
+		}
+
+		// Closes the menu, unless the lines can't be saved (the error is shown instead)
+		static void RequestClose()
+		{
+			if (SaveLines(ReadLines())) UIDrawer.SetActiveMenu(UIDrawer.MenuType.None);
 		}
 
 		static void CancelJobs()
@@ -159,6 +170,7 @@ namespace DLS.Graphics
 				topLeft = UI.PrevBounds.BottomLeft + Vector2.down * 0.8f;
 
 				HandleLineKeys();
+				if (resultTexts != null && !ResultsMatchLines()) ClearResults();
 
 				Vector2 scrollSize = new(width, UI.Height * 0.42f);
 				scrollViewBounds = Bounds2D.CreateFromTopLeftAndSize(topLeft, scrollSize);
@@ -174,7 +186,7 @@ namespace DLS.Graphics
 				bool busy = Busy;
 				int row1 = MenuHelper.DrawButtonTriplet("RUN", "ADD LINE", "DELETE LINE", topLeft, width, false, !busy, !busy, !busy && rowCount > 0);
 				topLeft = UI.PrevBounds.BottomLeft + Vector2.down * 0.5f;
-				int row2 = MenuHelper.DrawButtonTriplet("COPY ALL", "PASTE ALL", fillConfirmPending ? FillConfirmText : "FILL FROM CURRENT", topLeft, width, false, true, !busy, !busy);
+				int row2 = MenuHelper.DrawButtonTriplet("COPY ALL", pasteConfirmPending ? FillConfirmText : "PASTE ALL", fillConfirmPending ? FillConfirmText : "FILL FROM CURRENT", topLeft, width, false, true, !busy, !busy);
 				topLeft = UI.PrevBounds.BottomLeft + Vector2.down * 0.5f;
 				bool close = UI.Button("CLOSE", MenuHelper.Theme.ButtonTheme, topLeft, new Vector2(width, 0), true, false, true, Anchor.TopLeft);
 
@@ -183,6 +195,7 @@ namespace DLS.Graphics
 				if (row1 >= 0 || row2 >= 0)
 				{
 					if (row2 != 2) fillConfirmPending = false;
+					if (row2 != 1) pasteConfirmPending = false;
 					if (row1 == 0) Run();
 					else if (row1 == 1) AddLine();
 					else if (row1 == 2) DeleteLine();
@@ -191,7 +204,7 @@ namespace DLS.Graphics
 					else if (row2 == 2) FillFromCurrent();
 				}
 
-				if (close || KeyboardShortcuts.CancelShortcutTriggered) UIDrawer.SetActiveMenu(UIDrawer.MenuType.None);
+				if (close || KeyboardShortcuts.CancelShortcutTriggered) RequestClose();
 			}
 		}
 
@@ -211,12 +224,17 @@ namespace DLS.Graphics
 				theme.bgCol = state.focused ? new Color(0.25f, 0.4f, 0.27f) : (index % 2 == 0 ? ColHelper.MakeCol(0.17f) : ColHelper.MakeCol(0.13f));
 				theme.focusBorderCol = Color.clear;
 				string textBefore = state.text;
+				currentLineLength = textBefore.Length;
 				UI.InputField(LineHandle(index), theme, topLeft, new Vector2(fieldWidth, RowHeight), string.Empty, Anchor.TopLeft, 0.6f, lineValidator);
 				if (state.text != textBefore)
 				{
 					// Edits are ignored while a fill is running (its result would replace them)
 					if (fillJob != null) state.SetText(textBefore, state.focused);
-					else fillConfirmPending = false;
+					else
+					{
+						fillConfirmPending = false;
+						pasteConfirmPending = false;
+					}
 				}
 
 				string result = GetResultFor(index, state.text);
@@ -233,7 +251,8 @@ namespace DLS.Graphics
 
 		static bool ValidateLine(string text)
 		{
-			if (text.Length > MaxLineLength) return false;
+			// Over-long lines (from a file written elsewhere) stay editable as long as they don't get longer
+			if (text.Length > MaxLineLength && text.Length > currentLineLength) return false;
 			foreach (char c in text)
 			{
 				if (char.IsControl(c)) return false;
@@ -347,22 +366,38 @@ namespace DLS.Graphics
 			}
 
 			if (lines.Count > MaxLines) lines.RemoveRange(MaxLines, lines.Count - MaxLines);
+
+			if ((loadFailed || HasExistingLines()) && !pasteConfirmPending)
+			{
+				pasteConfirmPending = true;
+				statusText = loadFailed
+					? "CONFIRM: the test file couldn't be read, so PASTE would replace it. Press again to confirm"
+					: "This replaces the existing lines. Press again to confirm";
+				return;
+			}
+
+			pasteConfirmPending = false;
+			loadFailed = false;
 			WriteLines(lines, -1);
 			statusText = $"Pasted {lines.Count} lines";
 		}
 
-		static void SaveLines(List<string> lines)
+		// Returns false if the lines needed saving and couldn't be saved
+		static bool SaveLines(List<string> lines)
 		{
-			if (!CanEdit) return;
-			if (loadFailed && string.Join("\n", lines) == loadedSnapshot) return;
+			if (!CanEdit) return true;
+			if (loadFailed && string.Join("\n", lines) == loadedSnapshot) return true;
 			try
 			{
 				TestBenchStore.Save(projectName, chipName, lines);
 				loadFailed = false;
+				return true;
 			}
 			catch (Exception e)
 			{
+				UnityEngine.Debug.LogError("Could not save tests for " + chipName + ": " + e);
 				statusText = "Could not save tests: " + e.Message;
+				return false;
 			}
 		}
 
@@ -397,15 +432,7 @@ namespace DLS.Graphics
 		static void FillFromCurrent()
 		{
 			statusText = string.Empty;
-			if ((loadFailed || HasExistingLines()) && !fillConfirmPending)
-			{
-				fillConfirmPending = true;
-				statusText = loadFailed
-					? "CONFIRM: the test file couldn't be read, so FILL would replace it. Press again to confirm"
-					: "This replaces the existing lines. Press again to confirm";
-				return;
-			}
-
+			bool confirmed = fillConfirmPending;
 			fillConfirmPending = false;
 
 			int inputBits = 0;
@@ -425,6 +452,15 @@ namespace DLS.Graphics
 					return;
 				}
 
+				if ((loadFailed || HasExistingLines()) && !confirmed)
+				{
+					fillConfirmPending = true;
+					statusText = loadFailed
+						? "CONFIRM: the test file couldn't be read, so FILL would replace it. Press again to confirm"
+						: "This replaces the existing lines. Press again to confirm";
+					return;
+				}
+
 				fillJob = newJob;
 				Simulator.EnqueueEvaluationJob(newJob);
 			}
@@ -439,7 +475,7 @@ namespace DLS.Graphics
 			foreach (string line in ReadLines())
 			{
 				string trimmed = line.Trim();
-				if (trimmed.Length > 0 && trimmed != Header) return true;
+				if (trimmed.Length > 0 && trimmed != Header && trimmed != Header2) return true;
 			}
 
 			return false;
@@ -487,8 +523,7 @@ namespace DLS.Graphics
 				for (int row = 0; row < finished.Table.RowCount; row++) lines.Add(TestVectorWriter.FromTruthTableRow(finished.Table, row));
 				WriteLines(lines, -1);
 				loadFailed = false; // the user confirmed replacing the unreadable file
-				SaveLines(lines);
-				statusText = $"Filled {lines.Count} lines from the chip's current outputs";
+				if (SaveLines(lines)) statusText = $"Filled {lines.Count} lines from the chip's current outputs";
 			}
 		}
 
@@ -496,6 +531,17 @@ namespace DLS.Graphics
 		{
 			resultTexts = null;
 			resultWarning = null;
+		}
+
+		static bool ResultsMatchLines()
+		{
+			if (resultLines == null || resultLines.Length != rowCount) return false;
+			for (int i = 0; i < rowCount; i++)
+			{
+				if (resultLines[i] != UI.GetInputFieldState(LineHandle(i)).text) return false;
+			}
+
+			return true;
 		}
 
 		static string GetResultFor(int index, string currentText)
@@ -535,19 +581,22 @@ namespace DLS.Graphics
 		static string DescribePins(ChipDescription desc)
 		{
 			StringBuilder sb = new("Inputs: ");
-			AppendPins(sb, desc.InputPins);
+			AppendPins(sb, desc.InputPins, "in");
 			sb.Append("   Outputs: ");
-			AppendPins(sb, desc.OutputPins);
+			AppendPins(sb, desc.OutputPins, "out");
 			sb.Append("   (or in1.. / out1..)");
 			return sb.ToString();
 		}
 
-		static void AppendPins(StringBuilder sb, PinDescription[] pins)
+		static void AppendPins(StringBuilder sb, PinDescription[] pins, string prefix)
 		{
+			TruthPin[] truthPins = TruthTableJob.ToTruthPins(pins);
 			for (int i = 0; i < pins.Length; i++)
 			{
 				if (i > 0) sb.Append(", ");
 				sb.Append(pins[i].Name);
+				// Names the test parser can't accept are referenced by position instead
+				if (!TestVectorWriter.CanUseName(truthPins, i, prefix)) sb.Append(" (").Append(prefix).Append(i + 1).Append(')');
 				if (pins[i].BitCount != PinBitCount.Bit1) sb.Append('[').Append((int)pins[i].BitCount).Append(']');
 			}
 

@@ -15,13 +15,20 @@ namespace DLS.Game.Logic
 			string text = File.ReadAllText(path).Replace("\r\n", "\n").Replace('\r', '\n');
 			if (text.Length == 0) return new string[0];
 			if (text.EndsWith("\n")) text = text.Substring(0, text.Length - 1);
-			return text.Split('\n');
+			string[] lines = text.Split('\n');
+			for (int i = 0; i < lines.Length; i++) lines[i] = lines[i].Replace('\t', ' ');
+			return lines;
 		}
 
 		public static void Save(string projectName, string chipName, IReadOnlyList<string> lines)
 		{
 			SavePaths.EnsureDirectoryExists(SavePaths.GetTestsPath(projectName));
-			File.WriteAllText(GetPath(projectName, chipName), string.Join("\n", lines));
+			// Write to a temporary file first so a failure part-way never leaves a truncated test file
+			string path = GetPath(projectName, chipName);
+			string temp = path + ".tmp";
+			File.WriteAllText(temp, string.Join("\n", lines));
+			if (File.Exists(path)) File.Replace(temp, path, null);
+			else File.Move(temp, path);
 		}
 
 		public static string GetPath(string projectName, string chipName)

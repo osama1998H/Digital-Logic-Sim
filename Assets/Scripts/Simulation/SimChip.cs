@@ -78,7 +78,7 @@ namespace DLS.Simulation
 				Span<byte> randomBytes = stackalloc byte[4];
 				for (int i = 0; i < InternalState.Length - 1; i++)
 				{
-					Simulator.rng.NextBytes(randomBytes);
+					(Simulator.buildRng ?? Simulator.rng).NextBytes(randomBytes);
 					InternalState[i] = BitConverter.ToUInt32(randomBytes);
 				}
 			}

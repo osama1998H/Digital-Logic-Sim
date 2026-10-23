@@ -69,7 +69,7 @@ namespace DLS.Game.Logic
 			return name;
 		}
 
-		static bool CanUseName(TruthPin[] pins, int index, string prefix)
+		public static bool CanUseName(TruthPin[] pins, int index, string prefix)
 		{
 			string name = pins[index].Name;
 			if (string.IsNullOrEmpty(name)) return false;

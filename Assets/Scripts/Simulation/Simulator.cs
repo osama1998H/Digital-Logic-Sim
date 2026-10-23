@@ -33,6 +33,8 @@ namespace DLS.Simulation
 		public static float cacheCreatingProgress;
 
 		public static readonly Random rng = new();
+		// Source of randomness for ChooseNextSubChip: the shared rng, except during an isolated evaluation (which brings its own, seeded)
+		static Random stepRng = rng;
 		static readonly Stopwatch stopwatch = Stopwatch.StartNew();
 		public static int stepsPerClockTransition;
 		public static int simulationFrame;
@@ -311,7 +313,7 @@ namespace DLS.Simulation
 			// Step 4) if no sub chip is ready to be processed, pick one at random (but save buses for last)
 			if (noSubChipsReady)
 			{
-				nextSubChipIndex = rng.Next(0, num);
+				nextSubChipIndex = stepRng.Next(0, num);
 
 				// If processing in random order, save buses for last (since we must know all their inputs to display correctly)
 				if (isNonBusChipRemaining)

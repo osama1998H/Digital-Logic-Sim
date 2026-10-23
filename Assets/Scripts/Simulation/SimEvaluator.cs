@@ -9,6 +9,8 @@ namespace DLS.Simulation
 		readonly uint[] prevOutputs;
 		// Frame numbers far above the live simulation's, so this tree's pins never see a frame index twice
 		int frame = 1 << 30;
+		// Fixed seed: the same chip and inputs always evaluate the same way (e.g. memory starts in the same state)
+		readonly System.Random rng = new(12345);
 		bool hasStepped;
 
 		public SimEvaluator(SimChip root)
@@ -29,7 +31,7 @@ namespace DLS.Simulation
 		public void Step()
 		{
 			// A freshly built tree has its subchips in description order, so the first step determines the traversal order
-			Simulator.StepIsolated(Root, !hasStepped, frame);
+			Simulator.StepIsolated(Root, !hasStepped, frame, rng);
 			frame++;
 			hasStepped = true;
 		}

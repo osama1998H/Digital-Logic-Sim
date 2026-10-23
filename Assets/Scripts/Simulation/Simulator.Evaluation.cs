@@ -27,6 +27,24 @@ namespace DLS.Simulation
 
 		static readonly ConcurrentQueue<EvaluationJob> evaluationJobs = new();
 
+		// When set (on the building thread only), random initial state such as RAM contents comes from this instead of the shared rng
+		[ThreadStatic] internal static Random buildRng;
+
+		// Like BuildSimChip, but random initial state (RAM contents) is the same on every call
+		public static SimChip BuildSimChipDeterministic(DLS.Description.ChipDescription chipDesc, DLS.Game.ChipLibrary library)
+		{
+			Random old = buildRng;
+			buildRng = new Random(12345);
+			try
+			{
+				return BuildSimChip(chipDesc, library);
+			}
+			finally
+			{
+				buildRng = old;
+			}
+		}
+
 		// Call from the main thread
 		public static void EnqueueEvaluationJob(EvaluationJob job)
 		{
@@ -76,12 +94,13 @@ namespace DLS.Simulation
 
 		// Steps a chip tree that is not the live root, without disturbing the live simulation.
 		// Each call needs a frame number not used before by this tree, so pins don't count inputs from an earlier step.
-		internal static void StepIsolated(SimChip root, bool firstStep, int frame)
+		internal static void StepIsolated(SimChip root, bool firstStep, int frame, Random evalRng)
 		{
 			int simulationFrameOld = simulationFrame;
 			bool canDynamicReorderOld = canDynamicReorderThisFrame;
 			uint pcgRngStateOld = pcg_rngState;
 			bool bypassCachesOld = bypassCaches;
+			Random stepRngOld = stepRng;
 
 			try
 			{
@@ -89,6 +108,7 @@ namespace DLS.Simulation
 				canDynamicReorderThisFrame = false;
 				pcg_rngState = (uint)frame * 747796405u + 1;
 				bypassCaches = true;
+				stepRng = evalRng;
 
 				root.ResetReceivedFlagsOnAllPins();
 				// A built-in root has no subchips, so it must be processed directly
@@ -102,6 +122,7 @@ namespace DLS.Simulation
 				canDynamicReorderThisFrame = canDynamicReorderOld;
 				pcg_rngState = pcgRngStateOld;
 				bypassCaches = bypassCachesOld;
+				stepRng = stepRngOld;
 			}
 		}
 	}

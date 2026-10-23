@@ -42,7 +42,7 @@ namespace DLS.Game.Logic
 					return;
 				}
 
-				root = Simulator.BuildSimChip(chip, library);
+				root = Simulator.BuildSimChipDeterministic(chip, library);
 			}
 			catch (System.Exception e)
 			{
