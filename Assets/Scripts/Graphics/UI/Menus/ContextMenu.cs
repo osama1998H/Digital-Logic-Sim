@@ -141,16 +141,16 @@ namespace DLS.Graphics
 
 		static readonly MenuEntry[] entries_arrange =
 		{
-			ArrangeEntry("Align left", ArrangeOp.AlignLeft),
-			ArrangeEntry("Align centre", ArrangeOp.AlignHCentre),
-			ArrangeEntry("Align right", ArrangeOp.AlignRight),
+			ArrangeEntry("Align left", "Ctrl+Shift+Left", ArrangeOp.AlignLeft),
+			ArrangeEntry("Align centre", "Ctrl+Shift+C", ArrangeOp.AlignHCentre),
+			ArrangeEntry("Align right", "Ctrl+Shift+Right", ArrangeOp.AlignRight),
 			dividerMenuEntry,
-			ArrangeEntry("Align top", ArrangeOp.AlignTop),
-			ArrangeEntry("Align middle", ArrangeOp.AlignVCentre),
-			ArrangeEntry("Align bottom", ArrangeOp.AlignBottom),
+			ArrangeEntry("Align top", "Ctrl+Shift+Up", ArrangeOp.AlignTop),
+			ArrangeEntry("Align middle", "Ctrl+Shift+M", ArrangeOp.AlignVCentre),
+			ArrangeEntry("Align bottom", "Ctrl+Shift+Down", ArrangeOp.AlignBottom),
 			dividerMenuEntry,
-			ArrangeEntry("Space horizontally", ArrangeOp.DistributeH),
-			ArrangeEntry("Space vertically", ArrangeOp.DistributeV)
+			ArrangeEntry("Space horiz.", "Ctrl+Shift+H", ArrangeOp.DistributeH),
+			ArrangeEntry("Space vert.", "Ctrl+Shift+V", ArrangeOp.DistributeV)
 		};
 
 		static readonly MenuEntry[] entries_bottomBarChip =
@@ -302,9 +302,10 @@ namespace DLS.Graphics
 			SetContextMenuOpen($"{selection.Count} SELECTED");
 		}
 
-		static MenuEntry ArrangeEntry(string name, ArrangeOp op)
+		static MenuEntry ArrangeEntry(string name, string shortcut, ArrangeOp op)
 		{
-			return new MenuEntry(name.PadRight(pad), () => SelectionArranger.Apply(Project.ActiveProject.controller, op), () => SelectionArranger.CanArrange(Project.ActiveProject.controller, op));
+			string text = name.PadRight(14) + "<color=#666666ff>" + shortcut;
+			return new MenuEntry(text, () => SelectionArranger.Apply(Project.ActiveProject.controller, op), () => SelectionArranger.CanArrange(Project.ActiveProject.controller, op));
 		}
 
 		static bool CanArrangeSelection() => SelectionArranger.CanArrange(Project.ActiveProject.controller, ArrangeOp.AlignLeft);
