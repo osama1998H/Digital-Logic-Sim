@@ -264,6 +264,92 @@ namespace LayoutTests
 			Assert.That(WaveformView.StepAtDistanceFromRight(100, -1, 8), Is.EqualTo(100));
 		}
 
+		static List<WaveSegment> AlternatingSegments(int n)
+		{
+			long[] steps = new long[n];
+			uint[] vals = new uint[n];
+			for (int i = 0; i < n; i++)
+			{
+				steps[i] = i;
+				vals[i] = (uint)(i & 1);
+			}
+
+			return WaveformSegments.Build(steps, vals, n);
+		}
+
+		[Test]
+		public void Spans_DenseSignalIsBoundedByPixelWidth()
+		{
+			// 4096 alternating samples, 1 px per step, window of 800 px (the newest 800 steps)
+			List<WaveSegment> segs = AlternatingSegments(4096);
+			List<WaveSpan> spans = new();
+
+			WaveformView.BuildSpans(segs, 4096 - 800, 4095, 1, 1, spans);
+			Assert.That(spans.Count, Is.LessThanOrEqualTo(800));
+
+			WaveformView.BuildSpans(segs, 4096 - 800, 4095, 1, 3, spans);
+			Assert.That(spans.Count, Is.LessThanOrEqualTo(800 / 3 + 1));
+			Assert.That(spans.TrueForAll(s => s.StartStep >= 4096 - 800 && s.EndStep <= 4096), Is.True);
+			Assert.That(spans.Exists(s => s.Dense), Is.True);
+
+			// Spans tile the window without gaps or overlaps
+			for (int i = 1; i < spans.Count; i++) Assert.That(spans[i].StartStep, Is.EqualTo(spans[i - 1].EndStep));
+			Assert.That(spans[0].StartStep, Is.EqualTo(4096 - 800));
+			Assert.That(spans[^1].EndStep, Is.EqualTo(4096));
+		}
+
+		[Test]
+		public void Spans_SparseSignalIsUnchanged()
+		{
+			long[] steps = { 0, 1, 2, 3, 4, 5, 6, 7 };
+			uint[] vals = { 0, 0, 1, 1, 1, 0, 0, 1 };
+			List<WaveSegment> segs = WaveformSegments.Build(steps, vals, 8);
+			List<WaveSpan> spans = new();
+
+			WaveformView.BuildSpans(segs, 0, 7, 8, 3, spans);
+
+			Assert.That(spans.Count, Is.EqualTo(segs.Count));
+			for (int i = 0; i < segs.Count; i++)
+			{
+				Assert.That(spans[i].StartStep, Is.EqualTo(segs[i].StartStep));
+				Assert.That(spans[i].EndStep, Is.EqualTo(segs[i].EndStep));
+				Assert.That(spans[i].Value, Is.EqualTo(segs[i].Value));
+				Assert.That(spans[i].Dense, Is.False);
+			}
+		}
+
+		[Test]
+		public void Spans_ClipToWindowAndKeepGaps()
+		{
+			long[] steps = { 0, 1, 2, 3, 10, 11, 12 };
+			uint[] vals = { 1, 1, 1, 1, 0, 0, 0 };
+			List<WaveSegment> segs = WaveformSegments.Build(steps, vals, 7); // (0,4,1) (10,13,0)
+			List<WaveSpan> spans = new();
+
+			WaveformView.BuildSpans(segs, 2, 11, 8, 3, spans);
+
+			Assert.That(spans.Count, Is.EqualTo(2));
+			Assert.That((spans[0].StartStep, spans[0].EndStep), Is.EqualTo((2L, 4L)));
+			Assert.That((spans[1].StartStep, spans[1].EndStep), Is.EqualTo((10L, 12L)));
+
+			// Entirely outside the window: nothing
+			WaveformView.BuildSpans(segs, 5, 9, 8, 3, spans);
+			Assert.That(spans.Count, Is.EqualTo(0));
+		}
+
+		[Test]
+		public void Spans_NarrowRunDoesNotMergeAcrossGap()
+		{
+			long[] steps = { 0, 1, 5, 6 };
+			uint[] vals = { 0, 1, 0, 1 };
+			List<WaveSegment> segs = WaveformSegments.Build(steps, vals, 4);
+			List<WaveSpan> spans = new();
+
+			WaveformView.BuildSpans(segs, 0, 6, 1, 3, spans);
+
+			Assert.That(spans.TrueForAll(s => s.EndStep <= 2 || s.StartStep >= 5), Is.True);
+		}
+
 		static void AssertSeg(WaveSegment s, long start, long end, uint value)
 		{
 			Assert.That(s.StartStep, Is.EqualTo(start));

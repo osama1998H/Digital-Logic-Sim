@@ -23,6 +23,7 @@ namespace DLS.Graphics
 		const float LineThickness = 0.12f;
 		const float BusSlant = 0.3f;
 		const float MinLabelWidthPx = 24;
+		const float MinSpanPx = 3; // value changes closer together than this are drawn as one dense band
 		const float PanPxPerWheelNotch = 40;
 		const float RowFontSize = UIThemeLibrary.FontSizeSmall;
 		const string EmptyHint = "Right-click a pin or wire → PROBE";
@@ -43,7 +44,15 @@ namespace DLS.Graphics
 		static readonly uint[][] samples = new uint[ProbeSet.HistoryLength][];
 		static readonly uint[] column = new uint[ProbeSet.HistoryLength];
 		static readonly List<WaveSegment> segments = new();
+		static readonly List<WaveSpan> spans = new();
 		static readonly Dictionary<ulong, string> hexCache = new();
+		static readonly Dictionary<ulong, string> cursorTextCache = new();
+		static long stepTextStep = long.MinValue;
+		static string stepText;
+
+		// Newest sample seen last frame, so stepping while panned back keeps the view still
+		static SampleRing lastRing;
+		static long lastNewest = long.MaxValue;
 
 		public static void Toggle() => IsOpen = !IsOpen;
 		public static void Open() => IsOpen = true;
@@ -108,6 +117,9 @@ namespace DLS.Graphics
 			long newest = hasSamples ? steps[count - 1] : 0;
 			long oldest = hasSamples ? steps[first] : 0;
 			if (!paused) panSteps = 0;
+			else if (panSteps > 0 && ring == lastRing && hasSamples && newest > lastNewest) panSteps += newest - lastNewest;
+			lastRing = ring;
+			lastNewest = hasSamples ? newest : long.MaxValue;
 			panSteps = Math.Clamp(panSteps, 0, WaveformView.ClampPan(long.MaxValue, oldest, newest, visibleSteps));
 			long rightStep = newest - (long)Math.Round(panSteps);
 			long leftStep = rightStep - visibleSteps + 1;
@@ -146,7 +158,7 @@ namespace DLS.Graphics
 
 			string info;
 			if (probeCount == 0) info = EmptyHint;
-			else if (cursorActive) info = "step " + cursorStep;
+			else if (cursorActive) info = StepText(cursorStep);
 			else if (paused) info = "Shift+wheel: pan   wheel: zoom   Space: step";
 			else info = "wheel: zoom   Ctrl+Space: pause";
 			UI.DrawText(info, theme.FontRegular, RowFontSize, new Vector2(infoX, headerY), Anchor.TextCentreLeft, hintCol);
@@ -171,9 +183,13 @@ namespace DLS.Graphics
 					nameRight = UI.PrevBounds.Left - 0.4f;
 				}
 
-				using (UI.CreateMaskScopeMinMax(new Vector2(Pad, rowTop - rowHeight), new Vector2(nameRight, rowTop)))
+				// A very long value can leave no room for the name; never let the mask invert
+				if (nameRight > Pad)
 				{
-					UI.DrawText(probe.Name, theme.FontRegular, RowFontSize, new Vector2(Pad, rowCentre), Anchor.TextCentreLeft, Color.white);
+					using (UI.CreateMaskScopeMinMax(new Vector2(Pad, rowTop - rowHeight), new Vector2(nameRight, rowTop)))
+					{
+						UI.DrawText(probe.Name, theme.FontRegular, RowFontSize, new Vector2(Pad, rowCentre), Anchor.TextCentreLeft, Color.white);
+					}
 				}
 
 				if (visEnd <= visStart) continue;
@@ -181,6 +197,7 @@ namespace DLS.Graphics
 				// Waveform
 				for (int i = visStart; i < visEnd; i++) column[i] = samples[i][p];
 				WaveformSegments.Build(steps, column, visStart, visEnd - visStart, segments);
+				WaveformView.BuildSpans(segments, leftStep, rightStep, pxPerStep, MinSpanPx, spans);
 
 				float amplitude = rowHeight * 0.3f;
 				using (UI.CreateMaskScopeMinMax(new Vector2(waveLeft, rowTop - rowHeight), new Vector2(waveRight, rowTop)))
@@ -210,23 +227,34 @@ namespace DLS.Graphics
 				float yHigh = centreY + amp;
 				float yLow = centreY - amp;
 				Color fillCol = new(col.r, col.g, col.b, 0.15f);
+				Color denseCol = new(col.r, col.g, col.b, 0.55f);
 				float prevY = float.NaN;
 				long prevEnd = long.MinValue;
 
-				foreach (WaveSegment seg in segments)
+				// Spans are already clipped to the window
+				foreach (WaveSpan span in spans)
 				{
-					float x0 = ClampX(StepX(seg.StartStep));
-					float x1 = ClampX(StepX(seg.EndStep));
-					bool floating = (seg.Value & 0x10000) != 0;
-					bool high = !floating && (seg.Value & 1) != 0;
+					float x0 = ClampX(StepX(span.StartStep));
+					float x1 = ClampX(StepX(span.EndStep));
+
+					if (span.Dense)
+					{
+						DrawQuad(new Vector2(x0, yLow), new Vector2(x1, yHigh), denseCol);
+						prevY = float.NaN;
+						prevEnd = span.EndStep;
+						continue;
+					}
+
+					bool floating = (span.Value & 0x10000) != 0;
+					bool high = !floating && (span.Value & 1) != 0;
 					float y = floating ? centreY : high ? yHigh : yLow;
 
 					if (high) DrawQuad(new Vector2(x0, yLow), new Vector2(x1, yHigh), fillCol);
-					if (prevEnd == seg.StartStep && prevY != y) UI.DrawLine(new Vector2(x0, prevY), new Vector2(x0, y), LineThickness, col);
+					if (prevEnd == span.StartStep && !float.IsNaN(prevY) && prevY != y) UI.DrawLine(new Vector2(x0, prevY), new Vector2(x0, y), LineThickness, col);
 					UI.DrawLine(new Vector2(x0, y), new Vector2(x1, y), LineThickness, floating ? floatingCol : col);
 
 					prevY = y;
-					prevEnd = seg.EndStep;
+					prevEnd = span.EndStep;
 				}
 			}
 
@@ -235,34 +263,41 @@ namespace DLS.Graphics
 				uint mask = bitCount >= 16 ? 0xFFFFu : (1u << bitCount) - 1;
 				float yTop = centreY + amp;
 				float yBottom = centreY - amp;
+				Color denseCol = new(col.r, col.g, col.b, 0.35f);
 
-				foreach (WaveSegment seg in segments)
+				foreach (WaveSpan span in spans)
 				{
-					float xStart = StepX(seg.StartStep);
-					float xEnd = StepX(seg.EndStep);
-					float x0 = ClampX(xStart);
-					float x1 = ClampX(xEnd);
+					float x0 = ClampX(StepX(span.StartStep));
+					float x1 = ClampX(StepX(span.EndStep));
 					if (x1 <= x0) continue;
 
-					if (((seg.Value >> 16) & mask) == mask)
+					if (span.Dense)
+					{
+						DrawQuad(new Vector2(x0, yBottom), new Vector2(x1, yTop), denseCol);
+						continue;
+					}
+
+					if (((span.Value >> 16) & mask) == mask)
 					{
 						UI.DrawLine(new Vector2(x0, centreY), new Vector2(x1, centreY), LineThickness, floatingCol);
 						continue;
 					}
 
-					// A box whose ends narrow to a point at each value change
-					float slant = Mathf.Min(BusSlant, (xEnd - xStart) / 2);
-					float a = xStart == x0 ? x0 + slant : x0;
-					float b = xEnd == x1 ? x1 - slant : x1;
+					// A box whose ends narrow to a point at each value change (not where the window cuts it off)
+					bool changesAtStart = span.StartStep > leftStep;
+					bool changesAtEnd = span.EndStep <= rightStep;
+					float slant = Mathf.Min(BusSlant, (x1 - x0) / 2);
+					float a = changesAtStart ? x0 + slant : x0;
+					float b = changesAtEnd ? x1 - slant : x1;
 					UI.DrawLine(new Vector2(a, yTop), new Vector2(b, yTop), LineThickness, col);
 					UI.DrawLine(new Vector2(a, yBottom), new Vector2(b, yBottom), LineThickness, col);
-					if (a > x0)
+					if (changesAtStart)
 					{
 						UI.DrawLine(new Vector2(x0, centreY), new Vector2(a, yTop), LineThickness, col);
 						UI.DrawLine(new Vector2(x0, centreY), new Vector2(a, yBottom), LineThickness, col);
 					}
 
-					if (b < x1)
+					if (changesAtEnd)
 					{
 						UI.DrawLine(new Vector2(b, yTop), new Vector2(x1, centreY), LineThickness, col);
 						UI.DrawLine(new Vector2(b, yBottom), new Vector2(x1, centreY), LineThickness, col);
@@ -270,7 +305,7 @@ namespace DLS.Graphics
 
 					float widthPx = (x1 - x0) * pxPerUnit;
 					if (widthPx < MinLabelWidthPx) continue;
-					string label = HexText(seg.Value, bitCount);
+					string label = HexText(span.Value, bitCount);
 					float labelWidth = UI.CalculateTextSize(label, RowFontSize, font).x;
 					if (labelWidth + slant * 2 > x1 - x0) continue;
 					UI.DrawText(label, font, RowFontSize, new Vector2((x0 + x1) / 2, centreY), Anchor.TextCentre, Color.white);
@@ -287,9 +322,32 @@ namespace DLS.Graphics
 
 		static string FormatCursorValue(uint state, int bitCount)
 		{
-			if (bitCount <= 1) return PinValueFormat.FormatValue(state, 1, NumberFormat.Binary);
-			string hex = HexText(state, bitCount);
-			return hex == "Z" ? hex : "0x" + hex;
+			ulong key = ((ulong)(uint)bitCount << 32) | state;
+			if (!cursorTextCache.TryGetValue(key, out string text))
+			{
+				if (cursorTextCache.Count > 4096) cursorTextCache.Clear();
+				if (bitCount <= 1) text = PinValueFormat.FormatValue(state, 1, NumberFormat.Binary);
+				else
+				{
+					string hex = PinValueFormat.FormatValue(state, bitCount, NumberFormat.Hex);
+					text = hex == "Z" ? hex : "0x" + hex;
+				}
+
+				cursorTextCache.Add(key, text);
+			}
+
+			return text;
+		}
+
+		static string StepText(long step)
+		{
+			if (step != stepTextStep)
+			{
+				stepTextStep = step;
+				stepText = "step " + step;
+			}
+
+			return stepText;
 		}
 
 		// Labels repeat every frame, so cache them rather than allocating new strings

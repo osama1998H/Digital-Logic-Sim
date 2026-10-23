@@ -1,7 +1,26 @@
 using System;
+using System.Collections.Generic;
 
 namespace DLS.Game.Probes
 {
+	// A piece of waveform to draw. Dense spans stand for several value changes squeezed into
+	// less than the minimum width, and are drawn as a filled band instead of one shape per change.
+	public readonly struct WaveSpan
+	{
+		public readonly long StartStep;
+		public readonly long EndStep; // exclusive
+		public readonly uint Value; // value of the first segment (not meaningful for dense spans)
+		public readonly bool Dense;
+
+		public WaveSpan(long startStep, long endStep, uint value, bool dense)
+		{
+			StartStep = startStep;
+			EndStep = endStep;
+			Value = value;
+			Dense = dense;
+		}
+	}
+
 	// Window maths for the timing diagram. Samples are passed as a step array, oldest first.
 	public static class WaveformView
 	{
@@ -49,6 +68,38 @@ namespace DLS.Game.Probes
 		{
 			int i = LowerBound(steps, start, end, step);
 			return i < end && steps[i] == step ? i : -1;
+		}
+
+		// Clips segments to the window [leftStep, rightStep] and merges runs of adjacent segments narrower than
+		// minSpanPx into dense spans, so the number of spans is bounded by the window's pixel width
+		public static void BuildSpans(List<WaveSegment> segments, long leftStep, long rightStep, double pxPerStep, double minSpanPx, List<WaveSpan> output)
+		{
+			output.Clear();
+			long windowEnd = rightStep + 1;
+			int n = segments.Count;
+			int i = 0;
+
+			while (i < n)
+			{
+				WaveSegment seg = segments[i++];
+				long start = Math.Max(seg.StartStep, leftStep);
+				long end = Math.Min(seg.EndStep, windowEnd);
+				if (end <= start) continue;
+
+				bool dense = false;
+				while (i < n && (end - start) * pxPerStep < minSpanPx)
+				{
+					WaveSegment next = segments[i];
+					long nextEnd = Math.Min(next.EndStep, windowEnd);
+					// A gap, the window edge, or a neighbour wide enough to be drawn on its own ends the run
+					if (next.StartStep != end || nextEnd <= end || (nextEnd - next.StartStep) * pxPerStep >= minSpanPx) break;
+					end = nextEnd;
+					dense = true;
+					i++;
+				}
+
+				output.Add(new WaveSpan(start, end, seg.Value, dense));
+			}
 		}
 
 		// The step drawn at a given distance left of the right edge, where rightStep occupies the last stepWidth
