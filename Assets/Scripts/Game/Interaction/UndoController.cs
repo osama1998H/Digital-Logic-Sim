@@ -99,6 +99,20 @@ namespace DLS.Game
 			RecordUndoAction(moveUndoAction);
 		}
 
+		public void RecordOrganize(int[] elementIDs, Vector2[] positionsBefore, Vector2[] positionsAfter, WireDescription[] wiresBefore, WireDescription[] wiresAfter)
+		{
+			OrganizeUndoAction action = new()
+			{
+				elementIDs = elementIDs,
+				positionsBefore = positionsBefore,
+				positionsAfter = positionsAfter,
+				wiresBefore = wiresBefore,
+				wiresAfter = wiresAfter
+			};
+
+			RecordUndoAction(action);
+		}
+
 		public void RecordDeleteElements(List<IMoveable> deletedElements)
 		{
 			bool hasConnectedWires = true; // Todo: test if true so don't backup wire state unnecessarily
@@ -195,6 +209,10 @@ namespace DLS.Game
 				{
 					wireExistence.Trigger(undo, devChip);
 				}
+				else if (action is OrganizeUndoAction organize)
+				{
+					organize.Trigger(undo, devChip);
+				}
 			}
 			catch (Exception e)
 			{
@@ -226,6 +244,27 @@ namespace DLS.Game
 					devChip.Wires[i].MoveOffset = wireMoveOffsets[i] * (undo ? -1 : 1);
 					devChip.Wires[i].ApplyMoveOffset();
 				}
+			}
+		}
+
+		// Auto-organize: element positions and the complete wire state (wire order and shapes change, connected pins don't)
+		class OrganizeUndoAction : UndoAction
+		{
+			public int[] elementIDs;
+			public Vector2[] positionsBefore;
+			public Vector2[] positionsAfter;
+			public WireDescription[] wiresBefore;
+			public WireDescription[] wiresAfter;
+
+			public void Trigger(bool undo, DevChipInstance devChip)
+			{
+				Dictionary<int, IMoveable> elementLookupByID = devChip.Elements.ToDictionary(element => element.ID, element => element);
+				for (int i = 0; i < elementIDs.Length; i++)
+				{
+					elementLookupByID[elementIDs[i]].Position = undo ? positionsBefore[i] : positionsAfter[i];
+				}
+
+				if (devChip.ReplaceAllWires(undo ? wiresBefore : wiresAfter)) throw new Exception("Failed to load wire in undo/redo action");
 			}
 		}
 

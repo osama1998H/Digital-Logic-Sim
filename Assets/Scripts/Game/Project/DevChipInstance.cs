@@ -248,6 +248,29 @@ namespace DLS.Game
 			}
 		}
 
+		// Replace the shapes/attachments of all wires without touching the simulation, so the descriptions must connect the same pins as the current wires.
+		// Returns true if any wire failed to load.
+		public bool ReplaceAllWires(WireDescription[] descriptions)
+		{
+			Wires.Clear();
+
+			// Same as when loading: failed entries stay null so indices of other wires still line up
+			WireInstance[] loadedWiresWithOriginalIndices = new WireInstance[descriptions.Length];
+			bool anyFailed = false;
+
+			for (int i = 0; i < descriptions.Length; i++)
+			{
+				(WireInstance loadedWire, bool failed) = TryLoadWireFromDescription(descriptions[i], i, this, loadedWiresWithOriginalIndices);
+
+				if (!failed) AddWire(loadedWire, true);
+
+				loadedWiresWithOriginalIndices[i] = loadedWire;
+				anyFailed |= failed;
+			}
+
+			return anyFailed;
+		}
+
 		void AddElement(IMoveable element)
 		{
 			Elements.Add(element);
