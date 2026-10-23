@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace DLS.Game.Layout
 {
@@ -124,6 +125,8 @@ namespace DLS.Game.Layout
 				{
 					foreach (Net net in nets) Improve(net);
 				}
+
+				AssertTotalCostMatchesLayout();
 
 				failed.Sort((a, b) => a.Key.CompareTo(b.Key));
 				result.Connections.AddRange(failed);
@@ -272,6 +275,8 @@ namespace DLS.Game.Layout
 				}
 
 				Mark(record);
+				// The search's inlined step cost and Evaluate must agree: the improvement pass compares their results
+				Debug.Assert(search.Evaluate(record.States, record.ArrivalDir, record.Query) == record.Cost, "PathSearch.Evaluate disagrees with Search");
 				record.ResultIndex = result.Connections.Count;
 				routedByKey.TryAdd(c.Key, record);
 				result.Connections.Add(record.Result);
@@ -432,6 +437,29 @@ namespace DLS.Game.Layout
 				// Simplify keeps the first and last points, so attach points stay exact
 				routed.Points = Simplify(points);
 				return record;
+			}
+
+			// TotalCost is kept incrementally; recomputed from scratch it must agree (costs are pairwise symmetric, so the
+			// order does not matter). Catches occupancy marks leaked or lost by the improvement pass.
+			[Conditional("DEBUG")]
+			void AssertTotalCostMatchesLayout()
+			{
+				List<RouteRecord> records = new(result.Connections.Count);
+				foreach (RoutedConnection routed in result.Connections)
+				{
+					if (!routedByKey.TryGetValue(routed.Key, out RouteRecord r) || r.Result != routed) return; // duplicate keys
+					records.Add(r);
+				}
+
+				foreach (RouteRecord r in records) Lift(r);
+				double total = 0;
+				foreach (RouteRecord r in records)
+				{
+					total += search.Evaluate(r.States, r.ArrivalDir, r.Query);
+					Mark(r);
+				}
+
+				Debug.Assert(Math.Abs(total - result.TotalCost) <= 1e-4 * Math.Max(1, total), $"TotalCost {result.TotalCost} != layout cost {total}");
 			}
 
 			bool TryGetRouted(int key, out RouteRecord record) => pendingByKey.TryGetValue(key, out record) || routedByKey.TryGetValue(key, out record);

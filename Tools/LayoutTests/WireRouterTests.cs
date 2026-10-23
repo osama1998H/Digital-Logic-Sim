@@ -429,7 +429,6 @@ namespace LayoutTests
 			Assert.That(without.FailedCount, Is.EqualTo(0));
 			Assert.That(with.FailedCount, Is.EqualTo(0));
 			Assert.That(with.TotalCost, Is.LessThanOrEqualTo(without.TotalCost));
-			TestContext.Out.WriteLine($"TotalCost passes=0: {without.TotalCost}, passes=1: {with.TotalCost}");
 		}
 
 		[Test]
@@ -443,9 +442,89 @@ namespace LayoutTests
 			LayoutResult result = WireRouter.Route(problem, new RouterSettings());
 			stopwatch.Stop();
 
-			TestContext.Out.WriteLine($"Route took {stopwatch.ElapsedMilliseconds} ms, TotalCost {result.TotalCost}");
 			Assert.That(result.FailedCount, Is.EqualTo(0));
 			Assert.That(stopwatch.ElapsedMilliseconds, Is.LessThan(2000));
+		}
+
+		[Test]
+		public void Route_ImprovementPass_KeepsAttachInvariantsWhenTrunksMove()
+		{
+			LayoutProblem problem = ChipGridProblem(5, 4, 16, 150, 2, 9);
+
+			LayoutResult before = WireRouter.Route(problem, new RouterSettings { ImprovementPasses = 0 });
+			LayoutResult after = WireRouter.Route(problem, new RouterSettings { ImprovementPasses = 1 });
+			LayoutResult again = WireRouter.Route(problem, new RouterSettings { ImprovementPasses = 1 });
+
+			Assert.That(before.FailedCount, Is.EqualTo(0));
+			Assert.That(after.FailedCount, Is.EqualTo(0));
+			AssertAttachInvariants(problem, before);
+			AssertAttachInvariants(problem, after);
+
+			int writers = 0, movedTrunks = 0;
+			foreach (LayoutConnection c in problem.Connections)
+			{
+				if (c.TargetAttachToKey >= 0) writers++;
+				if (c.IsBusTrunk && !SamePoints(Find(before, c.Key).Points, Find(after, c.Key).Points)) movedTrunks++;
+			}
+
+			Assert.That(writers, Is.GreaterThan(0));
+			Assert.That(movedTrunks, Is.GreaterThan(0), "no trunk moved, so the writer re-attachment path went unexercised");
+
+			// Deterministic across runs
+			Assert.That(again.TotalCost, Is.EqualTo(after.TotalCost));
+			Assert.That(again.Connections.Count, Is.EqualTo(after.Connections.Count));
+			for (int i = 0; i < after.Connections.Count; i++)
+			{
+				RoutedConnection a = after.Connections[i], b = again.Connections[i];
+				Assert.That(b.Key, Is.EqualTo(a.Key));
+				Assert.That(b.AttachedToKey, Is.EqualTo(a.AttachedToKey));
+				Assert.That(b.AttachedSegmentIndex, Is.EqualTo(a.AttachedSegmentIndex));
+				Assert.That(SamePoints(a.Points, b.Points), Is.True, $"connection {a.Key}");
+			}
+		}
+
+		// Parents precede children; every wire attach point lies on the stated segment of the parent's final Points;
+		// writers end on their trunk and start at their pin; pin ends sit exactly on their pins
+		static void AssertAttachInvariants(LayoutProblem problem, LayoutResult result)
+		{
+			Dictionary<int, LayoutConnection> byKey = new();
+			foreach (LayoutConnection c in problem.Connections) byKey[c.Key] = c;
+
+			for (int i = 0; i < result.Connections.Count; i++)
+			{
+				RoutedConnection routed = result.Connections[i];
+				if (!routed.Routed) continue;
+				LayoutConnection c = byKey[routed.Key];
+				Assert.That(TestGeometry.AllAxisAligned(routed.Points), Is.True, $"connection {c.Key}");
+
+				if (c.TargetAttachToKey >= 0)
+				{
+					Assert.That(routed.SourceAttach, Is.EqualTo(AttachKind.Pin), $"writer {c.Key}");
+					Assert.That(routed.TargetAttach, Is.EqualTo(AttachKind.Wire), $"writer {c.Key}");
+					Assert.That(routed.AttachedToKey, Is.EqualTo(c.TargetAttachToKey), $"writer {c.Key}");
+				}
+				else Assert.That(routed.TargetAttach, Is.EqualTo(AttachKind.Pin), $"connection {c.Key}");
+
+				if (routed.SourceAttach == AttachKind.Pin) AssertSamePoint(routed.Points[0], problem.Pins[c.SourcePinKey].Position);
+				if (routed.TargetAttach == AttachKind.Pin) AssertSamePoint(routed.Points[^1], problem.Pins[c.TargetPinKey].Position);
+				if (routed.AttachedToKey < 0) continue;
+
+				int parentIndex = result.Connections.FindIndex(p => p.Key == routed.AttachedToKey);
+				Assert.That(parentIndex, Is.GreaterThanOrEqualTo(0).And.LessThan(i), $"connection {c.Key}");
+				LayoutPoint attach = routed.SourceAttach == AttachKind.Wire ? routed.Points[0] : routed.Points[^1];
+				AssertAttachPointOnParent(result.Connections[parentIndex], routed.AttachedSegmentIndex, attach);
+			}
+		}
+
+		static bool SamePoints(List<LayoutPoint> a, List<LayoutPoint> b)
+		{
+			if (a.Count != b.Count) return false;
+			for (int i = 0; i < a.Count; i++)
+			{
+				if (a[i].X != b[i].X || a[i].Y != b[i].Y) return false;
+			}
+
+			return true;
 		}
 
 		static LayoutPin WithBits(LayoutPin pin, int bits)
@@ -456,7 +535,9 @@ namespace LayoutTests
 
 		// Chips in a grid with inputs on the left edge and outputs on the right; each connection runs from an output to an
 		// unused input one column (sometimes two) to the right, in a nearby row. Output pins are 1-bit, occasionally 4-bit.
-		static LayoutProblem ChipGridProblem(int columns, int rows, int pinsPerSide, int connectionCount, int seed)
+		// Optional buses: a 1-bit trunk through a row gap across one chip column, read by nearby chips and written by 1-bit
+		// outputs of nearby chips (writers belong to other nets than the trunk).
+		static LayoutProblem ChipGridProblem(int columns, int rows, int pinsPerSide, int connectionCount, int seed, int busCount = 0)
 		{
 			const float chipWidth = 1.5f, gapX = 4, gapY = 1.5f, pitch = 0.25f;
 			float chipHeight = (pinsPerSide + 1) * pitch;
@@ -502,6 +583,42 @@ namespace LayoutTests
 				usedInputs.Add(target);
 				problem.Pins[target] = WithBits(problem.Pins[target], bits);
 				problem.Connections.Add(new LayoutConnection { Key = problem.Connections.Count, SourcePinKey = source, TargetPinKey = target, BitCount = bits });
+			}
+
+			List<(int c, int r)> slots = new();
+			for (int c = 0; c + 2 < columns; c++)
+			{
+				for (int r = 0; r + 1 < rows; r++) slots.Add((c, r));
+			}
+
+			for (int b = 0; b < busCount && slots.Count > 0; b++)
+			{
+				int pick = rng.Next(slots.Count);
+				(int bc, int br) = slots[pick];
+				slots.RemoveAt(pick);
+				float y = br * (chipHeight + gapY) + chipHeight + gapY / 2;
+				int origin = 900000 + b * 2, terminus = origin + 1;
+				problem.Pins[origin] = MakePin(origin, origin, bc * (chipWidth + gapX) + chipWidth + 1, y, 1);
+				problem.Pins[terminus] = MakePin(terminus, terminus, (bc + 2) * (chipWidth + gapX) - 1, y, -1);
+				int trunkKey = problem.Connections.Count;
+				problem.Connections.Add(new LayoutConnection { Key = trunkKey, SourcePinKey = origin, TargetPinKey = terminus, BitCount = 1, IsBusTrunk = true });
+
+				for (int k = 0; k < 2; k++)
+				{
+					int tChip = (bc + 1 + rng.Next(2)) * rows + br + rng.Next(2), first = rng.Next(pinsPerSide);
+					for (int j = 0; j < pinsPerSide; j++)
+					{
+						int target = PinKey(tChip, false, (first + j) % pinsPerSide);
+						if (usedInputs.Contains(target)) continue;
+						usedInputs.Add(target);
+						problem.Connections.Add(MakeConnection(problem.Connections.Count, origin, target));
+						break;
+					}
+
+					int sChip = (bc + rng.Next(2)) * rows + br + rng.Next(2), so = rng.Next(pinsPerSide);
+					if (outBits[sChip, so] != 1) continue;
+					problem.Connections.Add(new LayoutConnection { Key = problem.Connections.Count, SourcePinKey = PinKey(sChip, true, so), TargetPinKey = terminus, BitCount = 1, TargetAttachToKey = trunkKey });
+				}
 			}
 
 			return problem;
