@@ -71,7 +71,10 @@ namespace LayoutTests
 			Assert.That(r.Success, Is.False);
 			Assert.That(r.Error, Does.Contain("'S' is used as both an output and an input"));
 			Assert.That(r.ErrorIndex, Is.EqualTo(0));
-			Assert.That(ExprParser.Parse("A = B").ErrorIndex, Is.EqualTo(0));
+			var ok = ExprParser.Parse("A = B");
+			Assert.That(ok.Success, Is.True);
+			Assert.That(ok.Equations[0].Output, Is.EqualTo("A"));
+			Assert.That(ok.Inputs, Is.EqualTo(new[] { "B" }));
 			Assert.That(ExprParser.Parse("X = A; y = Y").Success, Is.False);
 		}
 		[Test]
@@ -82,6 +85,12 @@ namespace LayoutTests
 			Assert.That(r.Equations[0].Output, Is.EqualTo("Y2"));
 			var r2 = ExprParser.Parse("Y2 + Y; A");
 			Assert.That(r2.Equations.Select(e => e.Output), Is.EqualTo(new[] { "Y3", "Y4" }));
+		}
+		[Test]
+		public void ManyApostrophes_DoNotOverflow()
+		{
+			Assert.That(Eval("A" + new string('\'', 1000), "A=1"), Is.True);
+			Assert.That(Eval("A" + new string('\'', 1001), "A=1"), Is.False);
 		}
 		[Test]
 		public void DeepNesting_IsErrorNotCrash()

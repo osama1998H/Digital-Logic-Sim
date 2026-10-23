@@ -118,11 +118,13 @@ namespace DLS.Game.Logic
 					return new NotExpr(operand);
 				}
 				BoolExpr e = ParseAtom();
+				int ticks = 0;
 				while (Cur.Type == T.Tick)
 				{
 					pos++;
-					e = new NotExpr(e);
+					ticks++;
 				}
+				if (ticks % 2 == 1) e = new NotExpr(e); // pairs of ticks cancel
 				return e;
 			}
 
