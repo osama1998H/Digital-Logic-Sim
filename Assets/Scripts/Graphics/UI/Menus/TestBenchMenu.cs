@@ -40,6 +40,9 @@ namespace DLS.Graphics
 		static int focusedRow;
 		static int pendingScrollRow;
 		static bool fillConfirmPending;
+		// Set when the saved test file couldn't be read: nothing is saved until the lines differ from what was shown on opening
+		static bool loadFailed;
+		static string loadedSnapshot;
 		static Bounds2D scrollViewBounds;
 		static float statusCellWidth;
 
@@ -68,6 +71,8 @@ namespace DLS.Graphics
 			resultTexts = null;
 			resultLines = null;
 			fillConfirmPending = false;
+			loadFailed = false;
+			loadedSnapshot = null;
 			focusedRow = -1;
 			rowCount = 0;
 			pinSummary = DescribePins(chip);
@@ -82,7 +87,9 @@ namespace DLS.Graphics
 				}
 				catch (Exception e)
 				{
-					statusText = "Could not load tests: " + e.Message;
+					loadFailed = true;
+					lines.Clear();
+					statusText = "Could not read the test file (" + e.Message + "); it will not be overwritten unless you edit the lines";
 				}
 
 				if (lines.Count == 0)
@@ -92,6 +99,7 @@ namespace DLS.Graphics
 				}
 
 				WriteLines(lines, lines.Count - 1);
+				loadedSnapshot = string.Join("\n", lines);
 			}
 
 			UIDrawer.SetActiveMenu(UIDrawer.MenuType.TestBench);
@@ -202,7 +210,14 @@ namespace DLS.Graphics
 				theme.fontSize = MenuHelper.Theme.FontSizeRegular;
 				theme.bgCol = state.focused ? new Color(0.25f, 0.4f, 0.27f) : (index % 2 == 0 ? ColHelper.MakeCol(0.17f) : ColHelper.MakeCol(0.13f));
 				theme.focusBorderCol = Color.clear;
+				string textBefore = state.text;
 				UI.InputField(LineHandle(index), theme, topLeft, new Vector2(fieldWidth, RowHeight), string.Empty, Anchor.TopLeft, 0.6f, lineValidator);
+				if (state.text != textBefore)
+				{
+					// Edits are ignored while a fill is running (its result would replace them)
+					if (fillJob != null) state.SetText(textBefore, state.focused);
+					else fillConfirmPending = false;
+				}
 
 				string result = GetResultFor(index, state.text);
 				if (result != null)
@@ -339,9 +354,11 @@ namespace DLS.Graphics
 		static void SaveLines(List<string> lines)
 		{
 			if (!CanEdit) return;
+			if (loadFailed && string.Join("\n", lines) == loadedSnapshot) return;
 			try
 			{
 				TestBenchStore.Save(projectName, chipName, lines);
+				loadFailed = false;
 			}
 			catch (Exception e)
 			{
