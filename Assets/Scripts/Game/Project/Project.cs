@@ -559,6 +559,7 @@ namespace DLS.Game
 				try
 				{
 					Simulator.ApplyModifications();
+					Simulator.RunEvaluationJobs(4);
 					// ---- A new frame has been reached on main thread  ----
 					if (mainThreadFrameCount > simLastMainThreadSyncFrame)
 					{
@@ -669,6 +670,7 @@ namespace DLS.Game
 		{
 			Simulator.stepsPerClockTransition = stepsPerClockTransition;
 			Simulator.ApplyModifications();
+			Simulator.RunEvaluationJobs(4);
 			Simulator.RunSimulationStep(rootSimChip, inputPins, audioState.simAudio);
 			ViewedChip.UpdateStateFromSim(ViewedSimChip, !CanEditViewedChip);
 		}

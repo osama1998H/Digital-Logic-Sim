@@ -8,7 +8,7 @@ using Random = System.Random;
 
 namespace DLS.Simulation
 {
-	public static class Simulator
+	public static partial class Simulator
 	{
 		// Constants, for when a chip should be cached. If a chip is purely combinational and has at most AUTO_CACHING number of input bits, it will always be cached.
 		// Otherwise, a user can specifie a chip to be cached, if the chip is combinational and has at most USER_CACHING number of input bits.
@@ -160,12 +160,12 @@ namespace DLS.Simulation
 				{
 					ProcessBuiltinChip(nextSubChip); // We've reached a built-in chip, so process it directly
 				}
-				else if (combinationalChipCaches.ContainsKey(nextSubChip.Name) && useCaching)
+				else if (combinationalChipCaches.ContainsKey(nextSubChip.Name) && useCaching && !bypassCaches)
 				{
 					bool wasSuccessful = ProcessCachedChip(nextSubChip); // We found a cached chip, so use LUT to process it directly
 					if (!wasSuccessful) StepChip(nextSubChip); // Fallback to normal simulation, if lookup failed
 				}
-				else if (!chipsKnowToNotBeCombinational.Contains(nextSubChip.Name) && useCaching && !cacheCreationSuspended)
+				else if (!chipsKnowToNotBeCombinational.Contains(nextSubChip.Name) && useCaching && !cacheCreationSuspended && !bypassCaches)
 				{
 					RecalculateCachedLUTs(nextSubChip); // We found a chip that isn't cached but might be cachable, so we try to cache it
 					StepChip(nextSubChip);
