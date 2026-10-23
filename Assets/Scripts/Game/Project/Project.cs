@@ -204,6 +204,11 @@ namespace DLS.Game
 			{
 				Saver.SaveChip(saveChipDescription, description.ProjectName);
 
+				if (saveMode is SaveMode.SaveAs || !ChipHasBeenSavedBefore)
+				{
+					ProbeSet.OnChipSaved(ViewedChip.ChipName, saveChipDescription.Name, saveMode is SaveMode.SaveAs);
+				}
+
 				chipLibrary.NotifyChipSaved(saveChipDescription);
 				bool isNewChip = !ChipHasBeenSavedBefore || saveMode is SaveMode.SaveAs;
 

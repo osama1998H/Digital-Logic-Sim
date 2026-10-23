@@ -41,7 +41,7 @@ namespace DLS.Game.Probes
 			if (index >= 0)
 			{
 				probes.RemoveAt(index);
-				Publish();
+				Publish(true);
 				return false;
 			}
 
@@ -54,13 +54,13 @@ namespace DLS.Game.Probes
 				BitCount = (int)pin.bitCount,
 				Colour = (PinColour)(nextColour++ % Enum.GetValues(typeof(PinColour)).Length)
 			});
-			Publish();
+			Publish(true);
 			return true;
 		}
 
 		public static void RemoveProbesOwnedBy(int ownerId)
 		{
-			if (probes.RemoveAll(p => p.Address.PinOwnerID == ownerId) > 0) Publish();
+			if (probes.RemoveAll(p => p.Address.PinOwnerID == ownerId) > 0) Publish(true);
 		}
 
 		// Removes probes whose pin is no longer in the chip (e.g. element deleted by a path that doesn't
@@ -68,7 +68,7 @@ namespace DLS.Game.Probes
 		public static void PruneMissing(DevChipInstance chip)
 		{
 			if (chip == null) return;
-			if (probes.RemoveAll(p => !chip.TryFindPin(p.Address, out _)) > 0) Publish();
+			if (probes.RemoveAll(p => !chip.TryFindPin(p.Address, out _)) > 0) Publish(true);
 		}
 
 		// Called by Project for every switch of the edited chip. Unsaved chips (empty name) are not remembered.
@@ -92,6 +92,14 @@ namespace DLS.Game.Probes
 		{
 			probesByChip.Remove(oldName);
 			if (string.Equals(currentChipName, oldName, StringComparison.OrdinalIgnoreCase)) currentChipName = newName ?? string.Empty;
+		}
+
+		// First save or Save As of the edited chip: probes follow it under its new name.
+		// For Save As the original chip keeps its own remembered set.
+		public static void OnChipSaved(string oldName, string newName, bool keepOld)
+		{
+			if (keepOld && !string.IsNullOrEmpty(oldName)) probesByChip[oldName] = new List<Probe>(probes);
+			OnChipRenamed(oldName, newName);
 		}
 
 		// New project: forget everything remembered for the previous one
@@ -127,8 +135,10 @@ namespace DLS.Game.Probes
 			return pin.Name;
 		}
 
-		static void Publish()
+		// keepHistory: carry the existing samples over to the new recording (same chip, probe list edited)
+		static void Publish(bool keepHistory = false)
 		{
+			ProbeRecording previous = ProbeRecorder.Current;
 			if (probes.Count == 0)
 			{
 				ProbeRecorder.Current = null;
@@ -137,7 +147,25 @@ namespace DLS.Game.Probes
 
 			PinAddress[] addresses = new PinAddress[probes.Count];
 			for (int i = 0; i < addresses.Length; i++) addresses[i] = probes[i].Address;
-			ProbeRecorder.Current = new ProbeRecording(addresses, new SampleRing(addresses.Length, HistoryLength));
+			SampleRing ring = new SampleRing(addresses.Length, HistoryLength);
+
+			if (keepHistory && previous != null)
+			{
+				// The new ring has no writer until it is published, so this thread can fill it
+				int[] map = ColumnRemap.BuildMap(previous.Addresses, addresses, PinAddress.Equals);
+				int max = previous.Ring.Capacity;
+				long[] steps = new long[max];
+				uint[][] values = new uint[max][];
+				int count = previous.Ring.CopyLatest(max, steps, values);
+				uint[] row = new uint[addresses.Length];
+				for (int i = 0; i < count; i++)
+				{
+					ColumnRemap.RemapRow(values[i], map, ProbeRecorder.Floating, row);
+					ring.Write(steps[i], row);
+				}
+			}
+
+			ProbeRecorder.Current = new ProbeRecording(addresses, ring);
 		}
 	}
 }
