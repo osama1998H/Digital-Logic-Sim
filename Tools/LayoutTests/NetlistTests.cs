@@ -7,9 +7,9 @@ namespace LayoutTests
 {
 	public class NetlistTests
 	{
-		[TestCase("Y = A ^ B")] [TestCase("Y = A'*B + A*C'")] [TestCase("Y = !(A+B+C) ^ D")] [TestCase("S = A ^ B ^ C; C = A*B + C*(A ^ B)")] [TestCase("Y = 1; Z = A*0")]
+		[TestCase("Y = A ^ B")] [TestCase("Y = A'*B + A*C'")] [TestCase("Y = !(A+B+C) ^ D")] [TestCase("S = A ^ B ^ CIN; COUT = A*B + CIN*(A ^ B)")] [TestCase("Y = 1; Z = A*0")]
 		public void NandOnly_PreservesTruthTable(string text) => AssertEquivalent(text, GateSet.None);
-		[TestCase("S = A ^ B ^ C; C = A*B + C*(A ^ B)")]
+		[TestCase("S = A ^ B ^ CIN; COUT = A*B + CIN*(A ^ B)")]
 		public void AllGates_PreservesTruthTable(string text) => AssertEquivalent(text, GateSet.Not | GateSet.Or | GateSet.And | GateSet.Xor);
 		[TestCase("Y = A'*B + A*C'")] [TestCase("Y = A ^ B + C")]
 		public void SomeGates_PreservesTruthTable(string text)
@@ -33,6 +33,12 @@ namespace LayoutTests
 		}
 		[Test] public void NandOnly_UsesOnlyNand() => Assert.That(NetlistBuilder.Build(ExprParser.Parse("Y=A*B+C"), GateSet.None).Gates.All(g => g.Kind == GateKind.Nand), Is.True);
 		[Test] public void SharedSubexpressions_AreBuiltOnce() => Assert.That(NetlistBuilder.Build(ExprParser.Parse("X = A*B; Y = A*B + C"), GateSet.And | GateSet.Or).Gates.Count(g => g.Kind == GateKind.And), Is.EqualTo(1));
+		[Test] public void NandOnly_SharesXorSubNetwork()
+		{
+			int alone = NetlistBuilder.Build(ExprParser.Parse("X = A ^ B"), GateSet.None).Gates.Count;
+			int both = NetlistBuilder.Build(ExprParser.Parse("X = A ^ B; Y = (A ^ B) + C"), GateSet.None).Gates.Count;
+			Assert.That(both, Is.EqualTo(alone + 3)); // OR = NAND(NOT xor, NOT C)
+		}
 		[Test] public void SharedNots_AreBuiltOnce() => Assert.That(NetlistBuilder.Build(ExprParser.Parse("X = A'*B; Y = A' + B"), GateSet.Not | GateSet.And | GateSet.Or).Gates.Count(g => g.Kind == GateKind.Not), Is.EqualTo(1));
 		[Test] public void DoubleNegation_AddsNoGates() { var n = NetlistBuilder.Build(ExprParser.Parse("Y = A''"), GateSet.Not); Assert.That(n.Gates, Is.Empty); Assert.That(n.OutputNets[0], Is.EqualTo(0)); }
 		[Test] public void IdentityOutput_HasNoGates() { var n = NetlistBuilder.Build(ExprParser.Parse("Y = A"), GateSet.None); Assert.That(n.Gates, Is.Empty); Assert.That(n.OutputNets[0], Is.EqualTo(0)); }
