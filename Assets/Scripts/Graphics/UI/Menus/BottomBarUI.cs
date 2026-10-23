@@ -93,7 +93,7 @@ namespace DLS.Graphics
 				menuWidth = Mathf.Max(menuWidth, Draw.CalculateTextBoundsSize(name.AsSpan(), theme.fontSize, theme.font).x);
 			}
 
-			menuWidth += 1;
+			menuWidth += 1.5f;
 			Vector2 pos = new(buttonSpacing, barHeight + buttonSpacing);
 			Vector2 size = new(menuWidth, buttonHeight);
 			Draw.ID panelID = UI.ReservePanel();
@@ -104,7 +104,8 @@ namespace DLS.Graphics
 				{
 					bool buttonEnabled = MenuButtonsAndShortcutsEnabled || i is QuitButtonIndex or OptionsButtonIndex or TimingDiagramButtonIndex;
 					string text = menuButtonNames[i];
-					if (UI.Button(text, theme, pos, size, buttonEnabled, false, false, Anchor.BottomLeft))
+					// Left-aligned so the names and their (padded) shortcut hints line up in columns
+					if (UI.Button(text, theme, pos, size, buttonEnabled, false, false, Anchor.BottomLeft, true, 0.5f))
 					{
 						ButtonPressed(i);
 					}
