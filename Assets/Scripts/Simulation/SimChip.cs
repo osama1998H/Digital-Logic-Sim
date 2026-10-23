@@ -112,6 +112,7 @@ namespace DLS.Simulation
 				case ChipType.Clock:
 				case ChipType.Pulse:
 				case ChipType.dev_Ram_8Bit:
+				case ChipType.Ram_256x8:
 				case ChipType.Rom_256x16:
 				case ChipType.SevenSegmentDisplay:
 				case ChipType.DisplayRGB:

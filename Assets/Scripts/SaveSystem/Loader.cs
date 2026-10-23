@@ -28,7 +28,9 @@ namespace DLS.SaveSystem
 
 			Simulator.RequestClearCaches();
 
-			return new Project(projectDescription, chipLibrary);
+			Project project = new(projectDescription, chipLibrary);
+			project.EnsureBuiltinInDefaultCollection(ChipTypeHelper.GetName(ChipType.Ram_256x8), "MEMORY");
+			return project;
 		}
 
 		public static bool ProjectExists(string projectName)

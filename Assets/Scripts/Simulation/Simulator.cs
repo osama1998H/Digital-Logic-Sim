@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using DLS.Description;
 using DLS.Game;
+using DLS.Game.Memory;
 using Random = System.Random;
 
 namespace DLS.Simulation
@@ -641,37 +642,15 @@ namespace DLS.Simulation
 					break;
 				}
 				case ChipType.dev_Ram_8Bit:
+				case ChipType.Ram_256x8:
 				{
-					uint addressPin = chip.InputPins[0].State;
-					uint dataPin = chip.InputPins[1].State;
-					uint writeEnablePin = chip.InputPins[2].State;
-					uint resetPin = chip.InputPins[3].State;
-					uint clockPin = chip.InputPins[4].State;
+					uint address = PinState.GetBitStates(chip.InputPins[0].State);
+					uint data = PinState.GetBitStates(chip.InputPins[1].State);
+					bool write = PinState.FirstBitHigh(chip.InputPins[2].State);
+					bool reset = PinState.FirstBitHigh(chip.InputPins[3].State);
+					bool clock = PinState.FirstBitHigh(chip.InputPins[4].State);
 
-					// Detect clock rising edge
-					bool clockHigh = PinState.FirstBitHigh(clockPin);
-					bool isRisingEdge = clockHigh && chip.InternalState[^1] == 0;
-					chip.InternalState[^1] = clockHigh ? 1u : 0;
-
-					// Write/Reset on rising edge
-					if (isRisingEdge)
-					{
-						if (PinState.FirstBitHigh(resetPin))
-						{
-							for (int i = 0; i < 256; i++)
-							{
-								chip.InternalState[i] = 0;
-							}
-						}
-						else if (PinState.FirstBitHigh(writeEnablePin))
-						{
-							chip.InternalState[PinState.GetBitStates(addressPin)] = PinState.GetBitStates(dataPin);
-						}
-					}
-
-					// Output data at current address
-					chip.OutputPins[0].State = (ushort)chip.InternalState[PinState.GetBitStates(addressPin)];
-
+					chip.OutputPins[0].State = (ushort)RamLogic.Step(chip.InternalState, address, data, write, reset, clock, 8);
 					break;
 				}
 				case ChipType.Rom_256x16:

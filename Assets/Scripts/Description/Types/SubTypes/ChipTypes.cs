@@ -58,5 +58,8 @@ namespace DLS.Description
 		// ---- Time ----
 		RTC,
 
+		// ---- Memory (added later; enum values are saved) ----
+		Ram_256x8,
+
 	}
 }

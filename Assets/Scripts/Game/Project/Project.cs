@@ -765,6 +765,23 @@ namespace DLS.Game
 			if (autoSave && modified) SaveCurrentProjectDescription();
 		}
 
+		// Adds a built-in chip to the named collection, but only if no collection contains it yet (so it's added once, not on every load).
+		// Returns true if the project description changed (and was saved).
+		public bool EnsureBuiltinInDefaultCollection(string chipName, string collectionName)
+		{
+			foreach (ChipCollection c in description.ChipCollections)
+			{
+				if (c.Chips.Any(n => ChipDescription.NameMatch(n, chipName))) return false;
+			}
+
+			ChipCollection target = description.ChipCollections.FirstOrDefault(c => ChipDescription.NameMatch(c.Name, collectionName));
+			if (target == null) return false; // Falls back to OTHER via the chip library menu
+
+			target.Chips.Add(chipName);
+			SaveCurrentProjectDescription();
+			return true;
+		}
+
 		void EnsureChipRenamedInCollections(string chipNameOld, string chipNameNew)
 		{
 			foreach (ChipCollection collection in description.ChipCollections)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DLS.Description;
 using DLS.Game;
+using DLS.Game.Memory;
 using UnityEngine;
 using Random = System.Random;
 
@@ -56,6 +57,10 @@ namespace DLS.SaveSystem
 
 		public static SubChipDescription CreateSubChipDescription(SubChipInstance subChip)
 		{
+			uint[] internalData = (uint[])subChip.InternalData?.Clone();
+			// Previous clock level is runtime state, never persist it (avoids spurious unsaved-changes)
+			if (subChip.ChipType == ChipType.Ram_256x8 && internalData is { Length: RamLogic.StateLength }) internalData[RamLogic.PrevClockIndex] = 0;
+
 			return new SubChipDescription
 			(
 				subChip.Description.Name,
@@ -64,7 +69,7 @@ namespace DLS.SaveSystem
 				subChip.Position,
 				// Don't save colour info for bus since it changes based on received input, so would just trigger unnecessary 'unsaved changes' warnings
 				subChip.IsBus ? null : subChip.OutputPins.Select(p => new OutputPinColourInfo(p.Colour, p.Address.PinID)).ToArray(),
-				(uint[])subChip.InternalData?.Clone()
+				internalData
 			);
 		}
 
@@ -86,6 +91,7 @@ namespace DLS.SaveSystem
 			return type switch
 			{
 				ChipType.Rom_256x16 => new uint[256], // ROM contents
+				ChipType.Ram_256x8 => new uint[RamLogic.StateLength], // RAM starting contents + previous clock level
 				ChipType.Key => new uint[] { 'K' }, // Key binding
 				ChipType.Pulse => new uint[] { 50, 0, 0 }, // Pulse width, ticks remaining, input state old
 				ChipType.DisplayLED => new uint[] { 0 }, // LED colour
