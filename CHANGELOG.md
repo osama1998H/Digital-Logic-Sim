@@ -47,6 +47,11 @@ Select several items, then use **Arrange >** in the right-click menu or these sh
 ### Split / merge pin names
 Split and merge chip pins are named by bit number (`IN 7` … `IN 0`, `OUT 7-4`, `OUT 3-0`, `OUT 15-8`, …) instead of letters (`IN H` … `IN A`). The top pin is the most significant bit. How the chips work is unchanged.
 
+## Study tools
+
+### Value tooltips
+Hover any wire or pin to see its current value in binary, decimal, signed and hex. Turn it off with **Value tooltips** in Preferences.
+
 ## New chips and pins (merged from upstream pull requests)
 - **16-bit pins and chips** ([#571](https://github.com/SebLague/Digital-Logic-Sim/pull/571)): 16-bit input and output pins, plus 16-bit split and merge chips (16→8, 16→1, 8→16, 1→16).
 - **RTC (real-time clock) chip** ([#499](https://github.com/SebLague/Digital-Logic-Sim/pull/499)).

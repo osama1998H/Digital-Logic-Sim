@@ -52,6 +52,12 @@ namespace DLS.Graphics
 			"Organize all"
 		};
 
+		static readonly string[] ValueTooltipOptions =
+		{
+			"On",
+			"Off"
+		};
+
 		static readonly string[] SimulationStatusOptions =
 		{
 			"Active",
@@ -68,6 +74,7 @@ namespace DLS.Graphics
 		static readonly UIHandle ID_Snapping = new("PREFS_Snapping");
 		static readonly UIHandle ID_StraightWires = new("PREFS_StraightWires");
 		static readonly UIHandle ID_OrganizeOnSave = new("PREFS_OrganizeOnSave");
+		static readonly UIHandle ID_ValueTooltips = new("PREFS_ValueTooltips");
 		static readonly UIHandle ID_SimStatus = new("PREFS_SimStatus");
 		static readonly UIHandle ID_SimFrequencyField = new("PREFS_SimTickTarget");
 		static readonly UIHandle ID_ClockSpeedInput = new("PREFS_ClockSpeed");
@@ -107,6 +114,7 @@ namespace DLS.Graphics
 				int mainPinNamesMode = DrawNextWheel("Show I/O pin names", PinDisplayOptions, ID_MainPinNames);
 				int chipPinNamesMode = DrawNextWheel("Show chip pin names", PinDisplayOptions, ID_ChipPinNames);
 				int gridDisplayMode = DrawNextWheel(showGridLabel, GridDisplayOptions, ID_GridDisplay);
+				int valueTooltipsMode = DrawNextWheel("Value tooltips", ValueTooltipOptions, ID_ValueTooltips);
 				DrawHeader("EDITING:");
 				int snappingMode = DrawNextWheel("Snap to grid", SnappingOptions, ID_Snapping);
 				int straightWireMode = DrawNextWheel("Straight wires", StraightWireOptions, ID_StraightWires);
@@ -144,6 +152,7 @@ namespace DLS.Graphics
 				project.description.Prefs_MainPinNamesDisplayMode = mainPinNamesMode;
 				project.description.Prefs_ChipPinNamesDisplayMode = chipPinNamesMode;
 				project.description.Prefs_GridDisplayMode = gridDisplayMode;
+				project.description.Prefs_HideValueTooltips = valueTooltipsMode;
 				project.description.Prefs_Snapping = snappingMode;
 				project.description.Prefs_StraightWires = straightWireMode;
 				project.description.Prefs_OrganizeOnSave = organizeOnSaveMode;
@@ -214,6 +223,7 @@ namespace DLS.Graphics
 			UI.GetWheelSelectorState(ID_MainPinNames).index = projDesc.Prefs_MainPinNamesDisplayMode;
 			UI.GetWheelSelectorState(ID_ChipPinNames).index = projDesc.Prefs_ChipPinNamesDisplayMode;
 			UI.GetWheelSelectorState(ID_GridDisplay).index = projDesc.Prefs_GridDisplayMode;
+			UI.GetWheelSelectorState(ID_ValueTooltips).index = projDesc.Prefs_HideValueTooltips != 0 ? 1 : 0;
 			UI.GetWheelSelectorState(ID_Snapping).index = projDesc.Prefs_Snapping;
 			UI.GetWheelSelectorState(ID_StraightWires).index = projDesc.Prefs_StraightWires;
 			UI.GetWheelSelectorState(ID_OrganizeOnSave).index = projDesc.Prefs_OrganizeOnSave;

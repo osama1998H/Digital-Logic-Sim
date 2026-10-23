@@ -47,6 +47,7 @@ namespace DLS.Graphics
 			}
 
 			InteractionState.MouseIsOverUI = UI.IsMouseOverUIThisFrame;
+			if (ActiveMenu is not MenuType.MainMenu) ValueTooltip.Draw(Project.ActiveProject);
 		}
 
 		static void DrawAppMenus()

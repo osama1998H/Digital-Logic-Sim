@@ -19,6 +19,7 @@ namespace DLS.Description
 		public int Prefs_Snapping;
 		public int Prefs_StraightWires;
 		public int Prefs_OrganizeOnSave;
+		public int Prefs_HideValueTooltips;
 		public bool Prefs_SimPaused;
 		public int Prefs_SimTargetStepsPerSecond;
 		public int Prefs_SimStepsPerClockTick;
