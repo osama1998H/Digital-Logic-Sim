@@ -99,7 +99,7 @@ namespace DLS.Graphics
 				}
 
 				WriteLines(lines, lines.Count - 1);
-				loadedSnapshot = string.Join("\n", lines);
+				loadedSnapshot = string.Join("\n", ReadLines());
 			}
 
 			UIDrawer.SetActiveMenu(UIDrawer.MenuType.TestBench);
@@ -397,10 +397,12 @@ namespace DLS.Graphics
 		static void FillFromCurrent()
 		{
 			statusText = string.Empty;
-			if (HasExistingLines() && !fillConfirmPending)
+			if ((loadFailed || HasExistingLines()) && !fillConfirmPending)
 			{
 				fillConfirmPending = true;
-				statusText = "This replaces the existing lines. Press again to confirm";
+				statusText = loadFailed
+					? "CONFIRM: the test file couldn't be read, so FILL would replace it. Press again to confirm"
+					: "This replaces the existing lines. Press again to confirm";
 				return;
 			}
 
@@ -484,6 +486,7 @@ namespace DLS.Graphics
 				List<string> lines = new(finished.Table.RowCount);
 				for (int row = 0; row < finished.Table.RowCount; row++) lines.Add(TestVectorWriter.FromTruthTableRow(finished.Table, row));
 				WriteLines(lines, -1);
+				loadFailed = false; // the user confirmed replacing the unreadable file
 				SaveLines(lines);
 				statusText = $"Filled {lines.Count} lines from the chip's current outputs";
 			}
