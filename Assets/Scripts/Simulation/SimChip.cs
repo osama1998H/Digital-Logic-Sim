@@ -302,6 +302,55 @@ namespace DLS.Simulation
 			throw new Exception("Failed to find pin with address: " + address.PinID + ", " + address.PinOwnerID);
 		}
 
+		// Same lookup as GetSimPinFromAddress, without throwing
+		public bool TryGetSimPinFromAddress(PinAddress address, out SimPin result)
+		{
+			foreach (SimChip s in SubChips)
+			{
+				if (s.ID == address.PinOwnerID)
+				{
+					foreach (SimPin pin in s.InputPins)
+					{
+						if (pin.ID == address.PinID)
+						{
+							result = pin;
+							return true;
+						}
+					}
+
+					foreach (SimPin pin in s.OutputPins)
+					{
+						if (pin.ID == address.PinID)
+						{
+							result = pin;
+							return true;
+						}
+					}
+				}
+			}
+
+			foreach (SimPin pin in InputPins)
+			{
+				if (pin.ID == address.PinOwnerID)
+				{
+					result = pin;
+					return true;
+				}
+			}
+
+			foreach (SimPin pin in OutputPins)
+			{
+				if (pin.ID == address.PinOwnerID)
+				{
+					result = pin;
+					return true;
+				}
+			}
+
+			result = null;
+			return false;
+		}
+
 		public SimPin GetSimPinFromAddress(PinAddress address)
 		{
 			// Todo: address possible errors if accessing from main thread while being modified on sim thread?

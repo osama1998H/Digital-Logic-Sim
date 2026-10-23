@@ -129,9 +129,9 @@ namespace DLS.Game
 
 			foreach (IMoveable element in elementsToDelete)
 			{
+				ProbeSet.RemoveProbesOwnedBy(element.ID);
 				if (element is SubChipInstance subChip) ActiveDevChip.DeleteSubChip(subChip);
 				else if (element is DevPinInstance devPin) ActiveDevChip.DeleteDevPin(devPin);
-				ProbeSet.RemoveProbesOwnedBy(element.ID);
 			}
 
 			if (clearSelection) SelectedElements.Clear();

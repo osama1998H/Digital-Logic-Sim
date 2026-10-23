@@ -195,6 +195,7 @@ namespace DLS.Game
 				Saver.DeleteChip(nameOld, description.ProjectName, false);
 				Saver.SaveChip(saveChipDescription, description.ProjectName);
 				chipLibrary.NotifyChipRenamed(saveChipDescription, nameOld);
+				ProbeSet.OnChipRenamed(nameOld, saveChipDescription.Name);
 				RenameStarred(saveChipDescription.Name, nameOld, false, false);
 				EnsureChipRenamedInCollections(nameOld, saveChipDescription.Name);
 				UpdateAndSaveProjectDescription();
@@ -309,8 +310,6 @@ namespace DLS.Game
 			{
 				CreateBlankDevChip();
 			}
-
-			ProbeSet.OnViewedChipChanged(chipName);
 		}
 
 		void SetNewActiveDevChip(DevChipInstance devChip)
@@ -319,6 +318,7 @@ namespace DLS.Game
 			chipViewStack.Clear();
 			chipViewStack.Push(devChip);
 			viewedChipsString = string.Empty;
+			ProbeSet.OnViewedChipChanged(devChip.ChipName, devChip);
 
 			if (devChip.LastSavedDescription != null)
 			{
@@ -395,7 +395,11 @@ namespace DLS.Game
 				{
 					ViewedChip.RebuildSimulation();
 				}
+
+				ProbeSet.PruneMissing(editModeChip);
 			}
+
+			ProbeSet.ForgetChip(chipToDeleteName); // after the switch above, which stores the old chip's probes
 		}
 
 		// Test if chip's subchips (or any of their subchips, etc...) contain the target subchip

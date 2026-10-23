@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using DLS.Description;
+using DLS.Game.Probes;
 using DLS.SaveSystem;
 using UnityEngine;
 
@@ -252,6 +253,8 @@ namespace DLS.Game
 			{
 				if (Application.isEditor) Debug.Log($"Undo/redo action failed. Reason: {e.Message} Stack trace: {e.StackTrace}");
 			}
+
+			ProbeSet.PruneMissing(devChip);
 		}
 
 

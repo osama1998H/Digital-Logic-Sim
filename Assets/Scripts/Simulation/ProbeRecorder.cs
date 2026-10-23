@@ -38,11 +38,12 @@ namespace DLS.Simulation
 			{
 				try
 				{
-					buffer[i] = root.GetSimPinFromAddress(addresses[i]).State;
+					// Missing pin (deleted element): floating
+					buffer[i] = root.TryGetSimPinFromAddress(addresses[i], out SimPin pin) ? pin.State : Floating;
 				}
 				catch (Exception)
 				{
-					buffer[i] = Floating; // pin no longer exists (deleted element)
+					buffer[i] = Floating; // sim chip being modified from the main thread
 				}
 			}
 

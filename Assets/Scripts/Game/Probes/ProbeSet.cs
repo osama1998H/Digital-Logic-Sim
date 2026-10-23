@@ -28,11 +28,15 @@ namespace DLS.Game.Probes
 		public static IReadOnlyList<Probe> Probes => probes;
 		public static SampleRing Ring => ProbeRecorder.Current?.Ring;
 
-		public static bool IsProbed(PinInstance pin) => IndexOf(pin.Address) >= 0;
+		// Probes are addressed relative to the edited (root) chip, so pins of a viewed subchip can't be probed
+		public static bool CanProbe => Project.ActiveProject != null && Project.ActiveProject.CanEditViewedChip;
+
+		public static bool IsProbed(PinInstance pin) => CanProbe && IndexOf(pin.Address) >= 0;
 
 		// Returns whether the pin is probed afterwards (false if it was removed, or the limit was reached)
 		public static bool Toggle(PinInstance pin)
 		{
+			if (!CanProbe) return false;
 			int index = IndexOf(pin.Address);
 			if (index >= 0)
 			{
@@ -67,13 +71,27 @@ namespace DLS.Game.Probes
 			if (probes.RemoveAll(p => !chip.TryFindPin(p.Address, out _)) > 0) Publish();
 		}
 
-		public static void OnViewedChipChanged(string chipName)
+		// Called by Project for every switch of the edited chip. Unsaved chips (empty name) are not remembered.
+		public static void OnViewedChipChanged(string chipName, DevChipInstance chip)
 		{
 			chipName ??= string.Empty;
-			probesByChip[currentChipName] = probes;
+			if (currentChipName.Length > 0) probesByChip[currentChipName] = probes;
 			currentChipName = chipName;
-			probes = probesByChip.TryGetValue(chipName, out List<Probe> saved) ? saved : new List<Probe>();
+			probes = chipName.Length > 0 && probesByChip.TryGetValue(chipName, out List<Probe> saved) ? saved : new List<Probe>();
+			probes.RemoveAll(p => chip == null || !chip.TryFindPin(p.Address, out _));
 			Publish();
+		}
+
+		public static void ForgetChip(string chipName)
+		{
+			if (!string.IsNullOrEmpty(chipName)) probesByChip.Remove(chipName);
+		}
+
+		// The edited chip was renamed: keep its probes under the new name
+		public static void OnChipRenamed(string oldName, string newName)
+		{
+			probesByChip.Remove(oldName);
+			if (string.Equals(currentChipName, oldName, StringComparison.OrdinalIgnoreCase)) currentChipName = newName ?? string.Empty;
 		}
 
 		// New project: forget everything remembered for the previous one
