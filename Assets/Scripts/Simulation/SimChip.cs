@@ -104,6 +104,10 @@ namespace DLS.Simulation
 				case ChipType.Split_4To1Bit:
 				case ChipType.Split_8To4Bit:
 				case ChipType.Split_8To1Bit:
+				case ChipType.Merge_1To16Bit:
+				case ChipType.Merge_8To16Bit:
+				case ChipType.Split_16To8Bit:
+				case ChipType.Split_16To1Bit:
 					return true;
 				case ChipType.Clock:
 				case ChipType.Pulse:
@@ -115,6 +119,7 @@ namespace DLS.Simulation
 				case ChipType.DisplayLED:
 				case ChipType.Key:
 				case ChipType.Buzzer:
+				case ChipType.RTC:
 					return false;
 			}
 

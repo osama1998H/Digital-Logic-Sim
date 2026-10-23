@@ -213,8 +213,9 @@ namespace DLS.Game
 
 			RegenerateParentChipNamesHash();
 
-			Simulator.combinationalChipCaches.Remove(savedDescription.Name);
-			Simulator.chipsKnowToNotBeCombinational.Remove(savedDescription.Name);
+			// Clear all caches (not just this chip's), since any chip containing this chip may have a stale cache
+			Simulator.combinationalChipCaches.Clear();
+			Simulator.chipsKnowToNotBeCombinational.Clear();
 		}
 
 		public void AddNewSubChip(SubChipInstance subChip, bool isLoading)

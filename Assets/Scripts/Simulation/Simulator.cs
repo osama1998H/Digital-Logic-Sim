@@ -262,11 +262,11 @@ namespace DLS.Simulation
 				LUT[input] = outputs;
 
 				cacheCreatingProgress = (float)input / numberOfPossibleInputs;
-				if (!isCreatingACache) return; // Cancel the caching, if something ordered the caching to be stopped
+				if (!isCreatingACache) break; // Cancel the caching, if something ordered the caching to be stopped
 			}
-			combinationalChipCaches[chip.Name] = LUT;
+			if (isCreatingACache) combinationalChipCaches[chip.Name] = LUT;
 
-			// Reload buffered Input
+			// Reload buffered Input (also when cancelled, so the chip isn't left in the state of the last tested input)
 			chip.ResetReceivedFlagsOnAllPins(); // Make sure the chip only recieves our new input
 			for (int i = 0; i < bufferedInput.Length; i++)
 			{
