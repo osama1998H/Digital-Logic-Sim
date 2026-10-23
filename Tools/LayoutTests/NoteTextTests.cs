@@ -76,5 +76,49 @@ namespace LayoutTests
 			Assert.That(width, Is.EqualTo(9f));
 			Assert.That(height, Is.EqualTo(3f));
 		}
+
+		[Test]
+		public void Normalize_IsIdempotent()
+		{
+			string[] inputs =
+			{
+				new string('x', 39) + " y",
+				new string(' ', 41) + "y",
+				new string('x', 39) + " \ny",
+				"a\tb\r\nc\rd",
+				string.Join("\n", Enumerable.Repeat(new string('x', 60), 20)),
+				string.Join("\n", Enumerable.Repeat("ab", 11)) + "\n\n\nzz",
+				"abc\n\n   \n",
+				null,
+			};
+			foreach (string input in inputs)
+			{
+				string once = NoteText.Normalize(input);
+				Assert.That(NoteText.Normalize(once), Is.EqualTo(once), input);
+			}
+		}
+
+		[Test]
+		public void Normalize_TrimsWhitespaceExposedByClamp()
+		{
+			Assert.That(NoteText.Normalize(new string('x', 39) + " y"), Is.EqualTo(new string('x', 39)));
+			Assert.That(NoteText.Normalize(new string(' ', 41) + "y"), Is.EqualTo(""));
+		}
+
+		[Test]
+		public void Normalize_DoesNotSplitSurrogatePair()
+		{
+			string text = new string('x', 39) + "\uD83D\uDE00";
+
+			Assert.That(NoteText.Normalize(text), Is.EqualTo(new string('x', 39)));
+		}
+
+		[Test]
+		public void Normalize_DropsEmptyLinesExposedByLineClamp()
+		{
+			string text = string.Join("\n", Enumerable.Repeat("ab", 11)) + "\n\n\nzz";
+
+			Assert.That(NoteText.Normalize(text), Is.EqualTo(string.Join("\n", Enumerable.Repeat("ab", 11))));
+		}
 	}
 }

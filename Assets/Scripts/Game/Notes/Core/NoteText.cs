@@ -16,13 +16,20 @@ namespace DLS.Game.Notes
 
 			string unified = text.Replace("\r\n", "\n").Replace('\r', '\n').Replace('\t', ' ');
 			string[] raw = unified.Split('\n');
-			List<string> kept = new();
-			foreach (string line in raw)
+			// Clamp in this order so one pass is already stable: a second Normalize must not change the result
+			int lineCount = Math.Min(raw.Length, MaxLines);
+			List<string> kept = new(lineCount);
+			for (int i = 0; i < lineCount; i++)
 			{
-				if (kept.Count == MaxLines) break;
-				string trimmed = line.TrimEnd();
-				if (trimmed.Length > MaxLineLength) trimmed = trimmed.Substring(0, MaxLineLength);
-				kept.Add(trimmed);
+				string line = raw[i];
+				if (line.Length > MaxLineLength)
+				{
+					int cut = MaxLineLength;
+					// Don't leave a lone high surrogate at the end of the line
+					if (char.IsHighSurrogate(line[cut - 1])) cut--;
+					line = line.Substring(0, cut);
+				}
+				kept.Add(line.TrimEnd());
 			}
 
 			int count = kept.Count;
