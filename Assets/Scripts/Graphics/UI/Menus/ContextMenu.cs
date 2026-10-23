@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DLS.Description;
 using DLS.Game;
+using DLS.Game.Editing;
 using Seb.Helpers;
 using Seb.Types;
 using Seb.Vis;
@@ -23,6 +24,7 @@ namespace DLS.Graphics
 		static readonly MenuEntry dividerMenuEntry = new(menuDividerString, null, null);
 		static bool wasMouseOverMenu;
 		static string contextMenuHeader;
+		static bool keepOpenThisFrame; // set when an entry switches to another page of entries, rather than performing an action
 
 		static readonly MenuEntry[] pinColEntries = ((PinColour[])Enum.GetValues(typeof(PinColour))).Select(col =>
 			new MenuEntry(Format(Enum.GetName(typeof(PinColour), col)), () => SetCol(col), CanSetCol)
@@ -99,6 +101,44 @@ namespace DLS.Graphics
 			new(Format("DELETE"), Delete, CanDelete)
 		};
 
+		// ---- Multiple selected elements ----
+		static readonly MenuEntry arrangeEntry = new("Arrange  >".PadRight(pad), OpenArrangeEntries, CanArrangeSelection);
+		static readonly MenuEntry deleteSelectionEntry = new(Format("DELETE"), DeleteSelection, CanDelete);
+
+		static readonly MenuEntry[] entries_multiPins =
+		{
+			new(Format("RENAME..."), OpenBatchRenameMenu, CanEditCurrentChip),
+			arrangeEntry,
+			deleteSelectionEntry
+		};
+
+		static readonly MenuEntry[] entries_multiSubchips =
+		{
+			new(Format("LABEL..."), OpenBatchRenameMenu, CanEditCurrentChip),
+			arrangeEntry,
+			deleteSelectionEntry
+		};
+
+		static readonly MenuEntry[] entries_multiMixed =
+		{
+			arrangeEntry,
+			deleteSelectionEntry
+		};
+
+		static readonly MenuEntry[] entries_arrange =
+		{
+			ArrangeEntry("Align left", ArrangeOp.AlignLeft),
+			ArrangeEntry("Align centre", ArrangeOp.AlignHCentre),
+			ArrangeEntry("Align right", ArrangeOp.AlignRight),
+			dividerMenuEntry,
+			ArrangeEntry("Align top", ArrangeOp.AlignTop),
+			ArrangeEntry("Align middle", ArrangeOp.AlignVCentre),
+			ArrangeEntry("Align bottom", ArrangeOp.AlignBottom),
+			dividerMenuEntry,
+			ArrangeEntry("Space horizontally", ArrangeOp.DistributeH),
+			ArrangeEntry("Space vertically", ArrangeOp.DistributeV)
+		};
+
 		static readonly MenuEntry[] entries_bottomBarChip =
 		{
 			openChipEntry,
@@ -140,10 +180,12 @@ namespace DLS.Graphics
 				if (IsOpen) DrawContextMenu(activeContextMenuEntries);
 
 				// Close menu input
-				if (InputHelper.IsMouseDownThisFrame(MouseButton.Left) || KeyboardShortcuts.CancelShortcutTriggered)
+				if ((InputHelper.IsMouseDownThisFrame(MouseButton.Left) && !keepOpenThisFrame) || KeyboardShortcuts.CancelShortcutTriggered)
 				{
 					CloseContextMenu();
 				}
+
+				keepOpenThisFrame = false;
 			}
 		}
 
@@ -154,6 +196,12 @@ namespace DLS.Graphics
 			{
 				bool inCustomizeMenu = UIDrawer.ActiveMenu == UIDrawer.MenuType.ChipCustomization;
 				IInteractable hoverElement = InteractionState.ElementUnderMouse;
+
+				if (!inCustomizeMenu && Project.ActiveProject.controller.IsPartOfMultiSelection(hoverElement))
+				{
+					OpenMultiSelectionMenu();
+					return;
+				}
 
 				bool openSubChipContextMenu = hoverElement is SubChipInstance && !inCustomizeMenu;
 				bool openDevPinContextMenu = (hoverElement is PinInstance pin && pin.parent is DevPinInstance) || hoverElement is DevPinInstance;
@@ -223,6 +271,49 @@ namespace DLS.Graphics
 			}
 		}
 
+		static void OpenMultiSelectionMenu()
+		{
+			List<IMoveable> selection = Project.ActiveProject.controller.SelectedElements;
+			interactionContext = null;
+			interactionContextName = string.Empty;
+
+			bool allInputPins = selection.All(e => e is DevPinInstance { IsInputPin: true });
+			bool allOutputPins = selection.All(e => e is DevPinInstance { IsInputPin: false });
+			bool allSubchips = selection.All(e => e is SubChipInstance);
+
+			if (allInputPins || allOutputPins) activeContextMenuEntries = entries_multiPins;
+			else if (allSubchips) activeContextMenuEntries = entries_multiSubchips;
+			else activeContextMenuEntries = entries_multiMixed;
+
+			SetContextMenuOpen($"{selection.Count} SELECTED");
+		}
+
+		static MenuEntry ArrangeEntry(string name, ArrangeOp op)
+		{
+			return new MenuEntry(name.PadRight(pad), () => SelectionArranger.Apply(Project.ActiveProject.controller, op), () => SelectionArranger.CanArrange(Project.ActiveProject.controller, op));
+		}
+
+		static bool CanArrangeSelection() => SelectionArranger.CanArrange(Project.ActiveProject.controller, ArrangeOp.AlignLeft);
+
+		static void OpenArrangeEntries()
+		{
+			activeContextMenuEntries = entries_arrange;
+			contextMenuHeader = "ARRANGE".PadRight(pad);
+			keepOpenThisFrame = true;
+		}
+
+		static void OpenBatchRenameMenu()
+		{
+			List<IMoveable> selection = Project.ActiveProject.controller.SelectedElements;
+			BatchRenameMenu.SetTargets(selection, selection[0] is DevPinInstance);
+			UIDrawer.SetActiveMenu(UIDrawer.MenuType.BatchRename);
+		}
+
+		static void DeleteSelection()
+		{
+			Project.ActiveProject.controller.DeleteSelectedElements();
+		}
+
 		static string CreateWireHeaderString(WireInstance wire)
 		{
 			string pinName = wire.SourcePin.Name;
@@ -273,7 +364,12 @@ namespace DLS.Graphics
 			headerTheme.buttonCols.inactive = ColHelper.MakeCol(0.18f);
 			headerTheme.textCols.inactive = Color.white;
 
-			float menuWidth = Draw.CalculateTextBoundsSize(menuEntries[0].Text, theme.fontSize, theme.font).x + 1;
+			float menuWidth = 0;
+			foreach (MenuEntry entry in menuEntries)
+			{
+				if (entry.Text != menuDividerString) menuWidth = Mathf.Max(menuWidth, Draw.CalculateTextBoundsSize(entry.Text, theme.fontSize, theme.font).x + 1);
+			}
+
 			float menuWidthHeader = Draw.CalculateTextBoundsSize(contextMenuHeader, theme.fontSize, theme.font).x + 1;
 			menuWidth = Mathf.Max(menuWidth, menuWidthHeader);
 

@@ -482,6 +482,8 @@ namespace DLS.Game
 			description.Prefs_GridDisplayMode = 1 - description.Prefs_GridDisplayMode;
 		}
 
+		// Snapping as set in the preferences (ignoring the snap key, which is held for Ctrl shortcuts)
+		public bool SnapPreferenceEnabled => (description.Prefs_Snapping == 1 && ShowGrid) || description.Prefs_Snapping == 2;
 		public bool ShouldSnapToGrid => KeyboardShortcuts.SnapModeHeld || (description.Prefs_Snapping == 1 && ShowGrid) || description.Prefs_Snapping == 2;
 		public bool ForceStraightWires => KeyboardShortcuts.StraightLineModeHeld || (description.Prefs_StraightWires == 1 && ShowGrid) || description.Prefs_StraightWires == 2;
 

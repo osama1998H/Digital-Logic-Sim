@@ -29,6 +29,16 @@ namespace DLS.Game
 		public static bool UndoShortcutTriggered => CtrlShortcutTriggered(KeyCode.Z);
 		public static bool RedoShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.Z);
 
+		// ---- Arrange selection shortcuts ----
+		public static bool AlignLeftShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.LeftArrow);
+		public static bool AlignRightShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.RightArrow);
+		public static bool AlignTopShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.UpArrow);
+		public static bool AlignBottomShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.DownArrow);
+		public static bool AlignHorizontalCentresShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.C);
+		public static bool AlignVerticalCentresShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.M);
+		public static bool DistributeHorizontallyShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.H);
+		public static bool DistributeVerticallyShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.V);
+
 		// ---- Single key shortcuts ----
 		public static bool CancelShortcutTriggered => InputHelper.IsKeyDownThisFrame(KeyCode.Escape);
 		public static bool ConfirmShortcutTriggered => InputHelper.IsKeyDownThisFrame(KeyCode.Return) || InputHelper.IsKeyDownThisFrame(KeyCode.KeypadEnter);

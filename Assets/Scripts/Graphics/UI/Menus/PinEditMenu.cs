@@ -82,6 +82,11 @@ namespace DLS.Graphics
 
 		static void Confirm(string newName)
 		{
+			if (devPin.Pin.Name != newName)
+			{
+				Project.ActiveProject.ViewedChip.UndoController.RecordRename(new[] { devPin.ID }, new[] { devPin.Pin.Name }, new[] { newName });
+			}
+
 			devPin.Pin.Name = newName;
 
 			if (devPin.BitCount != PinBitCount.Bit1)

@@ -63,6 +63,11 @@ namespace DLS.Graphics
 
 		static void Confirm(string newName)
 		{
+			if (subChip.Label != newName)
+			{
+				Project.ActiveProject.ViewedChip.UndoController.RecordRename(new[] { subChip.ID }, new[] { subChip.Label }, new[] { newName });
+			}
+
 			subChip.Label = newName;
 			UIDrawer.SetActiveMenu(UIDrawer.MenuType.None);
 		}

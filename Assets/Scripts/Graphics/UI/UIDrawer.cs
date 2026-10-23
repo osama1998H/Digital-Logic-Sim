@@ -21,7 +21,8 @@ namespace DLS.Graphics
 			PulseEdit,
 			UnsavedChanges,
 			Search,
-			ChipLabelPopup
+			ChipLabelPopup,
+			BatchRename
 		}
 
 		static MenuType activeMenuOld;
@@ -70,6 +71,7 @@ namespace DLS.Graphics
 			else if (menuToDraw == MenuType.Search) SearchPopup.DrawMenu();
 			else if (menuToDraw == MenuType.ChipLabelPopup) ChipLabelMenu.DrawMenu();
 			else if (menuToDraw == MenuType.PulseEdit) PulseEditMenu.DrawMenu();
+			else if (menuToDraw == MenuType.BatchRename) BatchRenameMenu.DrawMenu();
 			else
 			{
 				bool showSimPausedBanner = project.simPaused;
@@ -104,6 +106,7 @@ namespace DLS.Graphics
 				else if (ActiveMenu == MenuType.Search) SearchPopup.OnMenuOpened();
 				else if (ActiveMenu == MenuType.ChipLabelPopup) ChipLabelMenu.OnMenuOpened();
 				else if (ActiveMenu == MenuType.PulseEdit) PulseEditMenu.OnMenuOpened();
+				else if (ActiveMenu == MenuType.BatchRename) BatchRenameMenu.OnMenuOpened();
 
 				if (InInputBlockingMenu() && Project.ActiveProject != null && Project.ActiveProject.controller != null)
 				{

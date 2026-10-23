@@ -113,6 +113,19 @@ namespace DLS.Game
 			RecordUndoAction(action);
 		}
 
+		// Renaming dev pins / labelling subchips (elements are identified by ID; the new name is applied based on element type)
+		public void RecordRename(int[] elementIDs, string[] namesBefore, string[] namesAfter)
+		{
+			RenameUndoAction action = new()
+			{
+				elementIDs = elementIDs,
+				namesBefore = namesBefore,
+				namesAfter = namesAfter
+			};
+
+			RecordUndoAction(action);
+		}
+
 		public void RecordDeleteElements(List<IMoveable> deletedElements)
 		{
 			bool hasConnectedWires = true; // Todo: test if true so don't backup wire state unnecessarily
@@ -213,6 +226,10 @@ namespace DLS.Game
 				{
 					organize.Trigger(undo, devChip);
 				}
+				else if (action is RenameUndoAction rename)
+				{
+					rename.Trigger(undo, devChip);
+				}
 			}
 			catch (Exception e)
 			{
@@ -265,6 +282,27 @@ namespace DLS.Game
 				}
 
 				if (devChip.ReplaceAllWires(undo ? wiresBefore : wiresAfter)) throw new Exception("Failed to load wire in undo/redo action");
+			}
+		}
+
+		class RenameUndoAction : UndoAction
+		{
+			public int[] elementIDs;
+			public string[] namesBefore;
+			public string[] namesAfter;
+
+			public void Trigger(bool undo, DevChipInstance devChip)
+			{
+				Dictionary<int, IMoveable> elementLookupByID = devChip.Elements.ToDictionary(element => element.ID, element => element);
+				for (int i = 0; i < elementIDs.Length; i++)
+				{
+					IMoveable element = elementLookupByID[elementIDs[i]];
+					string name = undo ? namesBefore[i] : namesAfter[i];
+
+					if (element is DevPinInstance devPin) devPin.Pin.Name = name;
+					else if (element is SubChipInstance subChip) subChip.Label = name;
+					Project.ActiveProject.controller.Select(element, true);
+				}
 			}
 		}
 

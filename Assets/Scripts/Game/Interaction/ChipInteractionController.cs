@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using DLS.Description;
+using DLS.Game.Editing;
 using DLS.Graphics;
 using DLS.SaveSystem;
 using Seb.Helpers;
@@ -134,6 +135,26 @@ namespace DLS.Game
 			if (clearSelection) SelectedElements.Clear();
 		}
 
+		public void DeleteSelectedElements()
+		{
+			if (SelectedElements.Count > 0) DeleteElements(SelectedElements);
+		}
+
+		// True if the element (or the dev pin it belongs to) is selected along with at least one other element
+		public bool IsPartOfMultiSelection(IInteractable element)
+		{
+			if (SelectedElements.Count <= 1) return false;
+
+			IMoveable moveable = element switch
+			{
+				IMoveable m => m,
+				PinInstance { parent: DevPinInstance devPin } => devPin,
+				_ => null
+			};
+
+			return moveable != null && moveable.IsSelected;
+		}
+
 		void DeleteSelected()
 		{
 			// Delete selected subchips/pins
@@ -207,6 +228,8 @@ namespace DLS.Game
 				}
 			}
 
+			HandleArrangeShortcuts();
+
 			if (KeyboardShortcuts.DeleteShortcutTriggered)
 			{
 				if (IsCreatingWire)
@@ -232,6 +255,18 @@ namespace DLS.Game
 			{
 				CancelEverything();
 			}
+		}
+
+		void HandleArrangeShortcuts()
+		{
+			if (KeyboardShortcuts.AlignLeftShortcutTriggered) SelectionArranger.Apply(this, ArrangeOp.AlignLeft);
+			else if (KeyboardShortcuts.AlignRightShortcutTriggered) SelectionArranger.Apply(this, ArrangeOp.AlignRight);
+			else if (KeyboardShortcuts.AlignTopShortcutTriggered) SelectionArranger.Apply(this, ArrangeOp.AlignTop);
+			else if (KeyboardShortcuts.AlignBottomShortcutTriggered) SelectionArranger.Apply(this, ArrangeOp.AlignBottom);
+			else if (KeyboardShortcuts.AlignHorizontalCentresShortcutTriggered) SelectionArranger.Apply(this, ArrangeOp.AlignHCentre);
+			else if (KeyboardShortcuts.AlignVerticalCentresShortcutTriggered) SelectionArranger.Apply(this, ArrangeOp.AlignVCentre);
+			else if (KeyboardShortcuts.DistributeHorizontallyShortcutTriggered) SelectionArranger.Apply(this, ArrangeOp.DistributeH);
+			else if (KeyboardShortcuts.DistributeVerticallyShortcutTriggered) SelectionArranger.Apply(this, ArrangeOp.DistributeV);
 		}
 
 		void HandleMouseInput()
@@ -440,7 +475,8 @@ namespace DLS.Game
 			}
 
 			IsCreatingSelectionBox = false;
-			ClearSelection();
+			// Keep the selection when right-clicking one of several selected elements, so the context menu can act on all of them
+			if (!IsPartOfMultiSelection(InteractionState.ElementUnderMouse)) ClearSelection();
 		}
 
 		void HandleLeftMouseDown()
