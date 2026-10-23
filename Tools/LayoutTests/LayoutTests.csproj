@@ -15,6 +15,7 @@
 		<Compile Include="../../Assets/Scripts/Game/Inspect/Core/**/*.cs" />
 		<Compile Include="../../Assets/Scripts/Game/Stats/Core/**/*.cs" />
 		<Compile Include="../../Assets/Scripts/Game/Logic/Core/**/*.cs" />
+		<Compile Include="../../Assets/Scripts/Game/Probes/Core/**/*.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
