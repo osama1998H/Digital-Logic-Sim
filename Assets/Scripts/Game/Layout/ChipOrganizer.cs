@@ -11,6 +11,7 @@ namespace DLS.Game.Layout
 	public struct OrganizeReport
 	{
 		public int WiresRouted, WiresFailed, ChipsMoved;
+		public bool RecordedUndo; // false when nothing changed (or organize failed and restored the chip)
 
 		public override string ToString() => $"Wires routed: {WiresRouted}, wires failed: {WiresFailed}, chips moved: {ChipsMoved}";
 	}
@@ -89,11 +90,42 @@ namespace DLS.Game.Layout
 				DescriptionCreator.UpdateWireIndicesForDescriptionCreation(chip);
 				WireDescription[] wiresAfterSnapshot = chip.Wires.Select(DescriptionCreator.CreateWireDescription).ToArray();
 				Vector2[] positionsAfter = chip.Elements.Select(e => e.Position).ToArray();
-				chip.UndoController.RecordOrganize(elementIDs, positionsBefore, positionsAfter, wiresBefore, wiresAfterSnapshot);
+				if (!SameLayout(positionsBefore, positionsAfter, wiresBefore, wiresAfterSnapshot))
+				{
+					chip.UndoController.RecordOrganize(elementIDs, positionsBefore, positionsAfter, wiresBefore, wiresAfterSnapshot);
+					report.RecordedUndo = true;
+				}
 			}
 
 			if (Application.isEditor) Debug.Log("Organize: " + report);
 			return report;
+		}
+
+		static bool SameLayout(Vector2[] positionsA, Vector2[] positionsB, WireDescription[] wiresA, WireDescription[] wiresB)
+		{
+			const float eps = 1e-4f;
+			if (positionsA.Length != positionsB.Length || wiresA.Length != wiresB.Length) return false;
+
+			for (int i = 0; i < positionsA.Length; i++)
+			{
+				if (!Near(positionsA[i], positionsB[i])) return false;
+			}
+
+			for (int i = 0; i < wiresA.Length; i++)
+			{
+				WireDescription a = wiresA[i], b = wiresB[i];
+				if (!PinAddress.Equals(a.SourcePinAddress, b.SourcePinAddress) || !PinAddress.Equals(a.TargetPinAddress, b.TargetPinAddress)) return false;
+				if (a.ConnectionType != b.ConnectionType || a.ConnectedWireIndex != b.ConnectedWireIndex || a.ConnectedWireSegmentIndex != b.ConnectedWireSegmentIndex) return false;
+				if (a.Points.Length != b.Points.Length) return false;
+				for (int j = 0; j < a.Points.Length; j++)
+				{
+					if (!Near(a.Points[j], b.Points[j])) return false;
+				}
+			}
+
+			return true;
+
+			static bool Near(Vector2 p, Vector2 q) => Mathf.Abs(p.x - q.x) <= eps && Mathf.Abs(p.y - q.y) <= eps;
 		}
 
 		static void Restore(DevChipInstance chip, int[] elementIDs, Vector2[] positions, WireDescription[] wires)

@@ -26,6 +26,10 @@ namespace DLS.Graphics
 		public static SubChipInstance ActiveCustomizeChip;
 		static SubChipInstance CustomizeStateBeforeEnteringCustomizeMenu;
 
+		// Organize on save ran when the menu opened and recorded an undo step; Cancel undoes it. Nothing else can record
+		// an undo step meanwhile: the chip controller only updates while no menu (or the bottom bar popup) is open.
+		static bool organizedOnOpen;
+
 		static readonly string[] CancelSaveButtonNames =
 		{
 			"CANCEL", "CUSTOMIZE", "SAVE"
@@ -45,8 +49,10 @@ namespace DLS.Graphics
 			if (ActiveCustomizeChip == null)
 			{
 				int organizeOnSave = Project.ActiveProject.description.Prefs_OrganizeOnSave;
-				if (organizeOnSave == 1) ChipOrganizer.TidyWires(Project.ActiveProject.ViewedChip);
-				else if (organizeOnSave == 2) ChipOrganizer.OrganizeAll(Project.ActiveProject.ViewedChip);
+				OrganizeReport report = default;
+				if (organizeOnSave == 1) report = ChipOrganizer.TidyWires(Project.ActiveProject.ViewedChip);
+				else if (organizeOnSave == 2) report = ChipOrganizer.OrganizeAll(Project.ActiveProject.ViewedChip);
+				organizedOnOpen = report.RecordedUndo;
 			}
 
 			ActiveCustomizeChip ??= CreateCustomizationState();
@@ -180,17 +186,20 @@ namespace DLS.Graphics
 
 		static void Cancel()
 		{
+			if (organizedOnOpen) Project.ActiveProject.ViewedChip.UndoController.TryUndo();
 			CloseMenu();
 		}
 
 		static void CloseMenu()
 		{
+			organizedOnOpen = false;
 			ActiveCustomizeChip = null;
 			UIDrawer.SetActiveMenu(UIDrawer.MenuType.None);
 		}
 
 		public static void Reset()
 		{
+			organizedOnOpen = false;
 			ActiveCustomizeChip = null;
 			CustomizeStateBeforeEnteringCustomizeMenu = null;
 		}
