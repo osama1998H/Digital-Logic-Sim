@@ -18,6 +18,8 @@ namespace DLS.Game
 		public static bool CreateNewChipShortcutTriggered => CtrlShortcutTriggered(KeyCode.N);
 		public static bool QuitToMainMenuShortcutTriggered => CtrlShortcutTriggered(KeyCode.Q);
 		public static bool SearchShortcutTriggered => CtrlShortcutTriggered(KeyCode.F);
+		public static bool TidyWiresShortcutTriggered => CtrlShortcutTriggered(KeyCode.T);
+		public static bool OrganizeAllShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.T);
 
 
 		// ---- Misc shortcuts ----

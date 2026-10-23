@@ -1,6 +1,7 @@
 using System;
 using DLS.Description;
 using DLS.Game;
+using DLS.Game.Layout;
 using Seb.Helpers;
 using Seb.Types;
 using Seb.Vis;
@@ -23,6 +24,8 @@ namespace DLS.Graphics
 			$"NEW CHIP     {shortcutTextCol}Ctrl+N",
 			$"SAVE CHIP    {shortcutTextCol}Ctrl+S",
 			$"FIND CHIP    {shortcutTextCol}Ctrl+F",
+			$"TIDY WIRES   {shortcutTextCol}Ctrl+T",
+			$"ORGANIZE ALL {shortcutTextCol}Ctrl+Shift+T",
 			$"LIBRARY      {shortcutTextCol}Ctrl+L",
 			$"PREFS        {shortcutTextCol}Ctrl+P",
 			$"QUIT         {shortcutTextCol}Ctrl+Q"
@@ -31,9 +34,11 @@ namespace DLS.Graphics
 		const int NewChipButtonIndex = 0;
 		const int SaveChipButtonIndex = 1;
 		const int FindChipButtonIndex = 2;
-		const int LibraryButtonIndex = 3;
-		const int OptionsButtonIndex = 4;
-		const int QuitButtonIndex = 5;
+		const int TidyWiresButtonIndex = 3;
+		const int OrganizeAllButtonIndex = 4;
+		const int LibraryButtonIndex = 5;
+		const int OptionsButtonIndex = 6;
+		const int QuitButtonIndex = 7;
 
 		// ---- State ----
 		static float scrollX;
@@ -68,7 +73,13 @@ namespace DLS.Graphics
 		static void DrawPopupMenu()
 		{
 			ButtonTheme theme = DrawSettings.ActiveUITheme.MenuPopupButtonTheme;
-			float menuWidth = Draw.CalculateTextBoundsSize(menuButtonNames[0].AsSpan(), theme.fontSize, theme.font).x + 1;
+			float menuWidth = 0;
+			foreach (string name in menuButtonNames)
+			{
+				menuWidth = Mathf.Max(menuWidth, Draw.CalculateTextBoundsSize(name.AsSpan(), theme.fontSize, theme.font).x);
+			}
+
+			menuWidth += 1;
 			Vector2 pos = new(buttonSpacing, barHeight + buttonSpacing);
 			Vector2 size = new(menuWidth, buttonHeight);
 			Draw.ID panelID = UI.ReservePanel();
@@ -110,6 +121,8 @@ namespace DLS.Graphics
 				if (i == NewChipButtonIndex) CreateNewChip();
 				else if (i == SaveChipButtonIndex) OpenSaveMenu();
 				else if (i == FindChipButtonIndex) OpenSearchMenu();
+				else if (i == TidyWiresButtonIndex) ChipOrganizer.TidyWires(Project.ActiveProject.ViewedChip);
+				else if (i == OrganizeAllButtonIndex) ChipOrganizer.OrganizeAll(Project.ActiveProject.ViewedChip);
 				else if (i == LibraryButtonIndex) OpenLibraryMenu();
 				else if (i == OptionsButtonIndex) OpenPreferencesMenu();
 				else if (i == QuitButtonIndex) ExitToMainMenu();
@@ -411,6 +424,8 @@ namespace DLS.Graphics
 				if (KeyboardShortcuts.CreateNewChipShortcutTriggered) CreateNewChip();
 				if (KeyboardShortcuts.SaveShortcutTriggered) OpenSaveMenu();
 				if (KeyboardShortcuts.LibraryShortcutTriggered) OpenLibraryMenu();
+				if (KeyboardShortcuts.TidyWiresShortcutTriggered) ChipOrganizer.TidyWires(Project.ActiveProject.ViewedChip);
+				if (KeyboardShortcuts.OrganizeAllShortcutTriggered) ChipOrganizer.OrganizeAll(Project.ActiveProject.ViewedChip);
 			}
 
 			if (KeyboardShortcuts.PreferencesShortcutTriggered) OpenPreferencesMenu();
