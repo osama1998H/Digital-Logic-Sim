@@ -1,4 +1,6 @@
 # Digital-Logic-Sim
+> **This fork** adds editor tools (batch rename, align/distribute, replace, duplicate, wire tidying), 16-bit chips, chip caching and fixes. See [CHANGELOG.md](CHANGELOG.md) for everything that differs from the original project.
+
 A minimalistic digital logic simulator, which I created as part of my video series: [Exploring How Computers Work](https://www.youtube.com/playlist?list=PLFt_AvWsXl0dPhqVsKt1Ni_46ARyiCGSq).
 <br>You can find the latest builds over [here](https://sebastian.itch.io/digital-logic-sim).<br>
 
