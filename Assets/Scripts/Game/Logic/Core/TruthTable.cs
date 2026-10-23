@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 namespace DLS.Game.Logic
 {
@@ -16,6 +17,8 @@ namespace DLS.Game.Logic
 
 	// Rows enumerate every input combination; the first input is the most significant.
 	// Outputs hold raw pin states (bits | floating flags << 16), as read from the simulation.
+	// Contract: one writer fills rows strictly in order (row == RowsFilled), so a reader on
+	// another thread can read any row below RowsFilled without locking.
 	public sealed class TruthTable
 	{
 		public const int MaxInputBits = 16;
@@ -24,10 +27,11 @@ namespace DLS.Game.Logic
 		public TruthPin[] Outputs { get; }
 		public int TotalInputBits { get; }
 		public int RowCount { get; }
-		public int RowsFilled { get; private set; }
+
+		public int RowsFilled => Volatile.Read(ref rowsFilled);
 
 		readonly uint[] outputStates;
-		readonly bool[] rowFilled;
+		int rowsFilled;
 
 		public TruthTable(TruthPin[] inputs, TruthPin[] outputs)
 		{
@@ -43,7 +47,6 @@ namespace DLS.Game.Logic
 
 			RowCount = 1 << TotalInputBits;
 			outputStates = new uint[RowCount * outputs.Length];
-			rowFilled = new bool[RowCount];
 		}
 
 		public uint GetInputValue(int row, int inputIndex)
@@ -56,12 +59,12 @@ namespace DLS.Game.Logic
 
 		public void SetOutputStates(int row, uint[] states)
 		{
-			if (!rowFilled[row])
-			{
-				rowFilled[row] = true;
-				RowsFilled++;
-			}
+			if (row != rowsFilled) throw new InvalidOperationException($"Rows must be filled in order: expected {rowsFilled}, got {row}.");
+			if (states.Length < Outputs.Length) throw new ArgumentException($"Expected at least {Outputs.Length} output states.", nameof(states));
+
 			Array.Copy(states, 0, outputStates, row * Outputs.Length, Outputs.Length);
+			// Publish only after the data is written, so a reader never sees an unwritten row.
+			Volatile.Write(ref rowsFilled, row + 1);
 		}
 
 		public uint GetOutputState(int row, int outputIndex) => outputStates[row * Outputs.Length + outputIndex];
