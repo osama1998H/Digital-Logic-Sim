@@ -39,6 +39,8 @@ namespace DLS.Game.Logic
 		{
 			readonly List<Token> tokens;
 			int pos;
+			int depth;
+			const int MaxDepth = 64;
 			public readonly Dictionary<string, string> Variables = new(StringComparer.OrdinalIgnoreCase);
 
 			public Parser(List<Token> tokens) => this.tokens = tokens;
@@ -83,6 +85,11 @@ namespace DLS.Game.Logic
 				return (name, nameIndex, expr);
 			}
 
+			void Enter()
+			{
+				if (++depth > MaxDepth) throw new ParseError($"Expression is nested too deeply (more than {MaxDepth} levels)", Cur.Index);
+			}
+
 			BoolExpr ParseOr() => ParseChain(ParseXor, T.Or, terms => new OrExpr(terms));
 			BoolExpr ParseXor() => ParseChain(ParseAnd, T.Xor, terms => new XorExpr(terms));
 			BoolExpr ParseAnd() => ParseChain(ParseUnary, T.And, terms => new AndExpr(terms));
@@ -104,8 +111,11 @@ namespace DLS.Game.Logic
 			{
 				if (Cur.Type == T.Not)
 				{
+					Enter();
 					pos++;
-					return new NotExpr(ParseUnary());
+					BoolExpr operand = ParseUnary();
+					depth--;
+					return new NotExpr(operand);
 				}
 				BoolExpr e = ParseAtom();
 				while (Cur.Type == T.Tick)
@@ -135,10 +145,12 @@ namespace DLS.Game.Logic
 						return new ConstExpr(t.Text == "1");
 					case T.LParen:
 					{
+						Enter();
 						pos++;
 						BoolExpr inner = ParseOr();
 						if (Cur.Type != T.RParen) throw new ParseError("Missing ')'", Cur.Index);
 						pos++;
+						depth--;
 						return inner;
 					}
 					case T.Sep:
@@ -176,13 +188,17 @@ namespace DLS.Game.Logic
 				{
 					if (names[i].name != null && !used.Add(names[i].name)) throw new ParseError($"Output {names[i].name} is defined twice", names[i].nameIndex);
 				}
+				for (int i = 0; i < names.Count; i++)
+				{
+					if (names[i].name != null && parser.Variables.ContainsKey(names[i].name)) throw new ParseError($"'{names[i].name}' is used as both an output and an input", names[i].nameIndex);
+				}
 				int counter = 1;
 				foreach (Equation eq in result.Equations)
 				{
 					if (eq.Output != null) continue;
 					string candidate;
 					do candidate = counter++ == 1 ? "Y" : "Y" + (counter - 1);
-					while (!used.Add(candidate));
+					while (parser.Variables.ContainsKey(candidate) || !used.Add(candidate));
 					eq.Output = candidate;
 				}
 
