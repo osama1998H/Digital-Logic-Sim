@@ -32,6 +32,7 @@ namespace DLS.Graphics
 			$"TRUTH TABLE    {shortcutTextCol}Ctrl+Shift+Y",
 			$"TEST BENCH     {shortcutTextCol}Ctrl+B",
 			$"EXPRESSION     {shortcutTextCol}Ctrl+Shift+G",
+			$"ADD NOTE       {shortcutTextCol}Ctrl+Shift+N",
 			$"TIMING DIAGRAM {shortcutTextCol}Ctrl+Shift+W",
 			$"LIBRARY        {shortcutTextCol}Ctrl+L",
 			$"PREFS          {shortcutTextCol}Ctrl+P",
@@ -47,10 +48,11 @@ namespace DLS.Graphics
 		const int TruthTableButtonIndex = 6;
 		const int TestBenchButtonIndex = 7;
 		const int ExpressionButtonIndex = 8;
-		const int TimingDiagramButtonIndex = 9;
-		const int LibraryButtonIndex = 10;
-		const int OptionsButtonIndex = 11;
-		const int QuitButtonIndex = 12;
+		const int AddNoteButtonIndex = 9;
+		const int TimingDiagramButtonIndex = 10;
+		const int LibraryButtonIndex = 11;
+		const int OptionsButtonIndex = 12;
+		const int QuitButtonIndex = 13;
 
 		// ---- State ----
 		static float scrollX;
@@ -142,6 +144,7 @@ namespace DLS.Graphics
 				else if (i == TruthTableButtonIndex) OpenTruthTable();
 				else if (i == TestBenchButtonIndex) OpenTestBench();
 				else if (i == ExpressionButtonIndex) ExpressionMenu.Open();
+				else if (i == AddNoteButtonIndex) StartPlacingNote();
 				else if (i == TimingDiagramButtonIndex) TimingDiagramPanel.Toggle();
 				else if (i == LibraryButtonIndex) OpenLibraryMenu();
 				else if (i == OptionsButtonIndex) OpenPreferencesMenu();
@@ -418,6 +421,12 @@ namespace DLS.Graphics
 			}
 		}
 
+		static void StartPlacingNote()
+		{
+			UIDrawer.SetActiveMenu(UIDrawer.MenuType.None);
+			NoteEditMenu.BeginPlacingNewNote(Project.ActiveProject);
+		}
+
 		static void OpenSaveMenu() => UIDrawer.SetActiveMenu(UIDrawer.MenuType.ChipSave);
 		static void OpenSearchMenu() => UIDrawer.SetActiveMenu(UIDrawer.MenuType.Search);
 		static void OpenStatsMenu() => ChipStatsMenu.Open(DescriptionCreator.CreateChipDescription(Project.ActiveProject.ViewedChip));
@@ -453,6 +462,7 @@ namespace DLS.Graphics
 				if (KeyboardShortcuts.TruthTableShortcutTriggered) OpenTruthTable();
 				if (KeyboardShortcuts.TestBenchShortcutTriggered) OpenTestBench();
 				if (KeyboardShortcuts.ExpressionShortcutTriggered) ExpressionMenu.Open();
+				if (KeyboardShortcuts.AddNoteShortcutTriggered) StartPlacingNote();
 			}
 
 			// Also available while viewing a subchip: the panel keeps showing the edited chip's probes

@@ -141,6 +141,18 @@ namespace DLS.Game
 			RecordUndoAction(action);
 		}
 
+		// Drops the most recent action if it is the "add" of exactly this one note (used when a just-placed note is cancelled or left empty)
+		public bool TryRemoveLastAddedNote(int noteID)
+		{
+			if (undoHistory.Count == 0 || undoIndex != undoHistory.Count - 1) return false;
+			if (undoHistory[undoIndex] is not ElementExistenceAction { isDeleteAction: false } add) return false;
+			if (add.chipNames.Length != 0 || add.pinDescriptions.Length != 0 || add.noteDescriptions.Length != 1 || add.noteDescriptions[0].ID != noteID) return false;
+
+			undoHistory.RemoveAt(undoIndex);
+			undoIndex--;
+			return true;
+		}
+
 		public void RecordReplaceSubChips(SubChipDescription[] subChipsBefore, SubChipDescription[] subChipsAfter, WireDescription[] wiresBefore, WireDescription[] wiresAfter)
 		{
 			ReplaceSubChipsUndoAction action = new()

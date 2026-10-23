@@ -58,6 +58,9 @@ Right-click a chip and choose **Truth Table**, or press **Ctrl+Shift+Y** for the
 ### Test bench
 Right-click a chip and choose **Test Bench**, or press **Ctrl+B** for the chip you're editing, to check it against a list of test lines. Each line sets inputs and, after `->`, says what the outputs should be, for example `A=1 B=0 -> SUM=1`. Lines with no `->` only set inputs, so you can clock a sequential chip step by step; inputs start at 0 and keep their value from line to line. Pins are referenced by name or by position (`in1`, `out2`), values can be decimal, negative, `0b1010` or `0xFF`, and an expected value can be `x` (don't care) or `z` (floating). `#` starts a comment. Memory (latches, registers) starts in an arbitrary state, so begin sequential tests with a reset or store line. Tests are saved per chip in the project's `Tests` folder. **FILL FROM CURRENT** writes one line per input combination of a combinational chip (up to 8 input bits), using its current outputs.
 
+### Notes
+Add text notes to the canvas with **ADD NOTE** in the bottom-bar menu or **Ctrl+Shift+N**. The note follows the cursor like a chip; click to place it and type up to 12 lines of 40 characters. Pick a colour (yellow, blue, green, pink or grey) with the wheel, then **Confirm** (or press Ctrl+Enter). Right-click a note and choose **Edit** to change it later, or **Delete**. Notes are saved with the chip, can be moved, selected, duplicated and deleted like other items, may overlap chips and wires without blocking them, and have no effect on the simulation. Confirming empty text removes the note.
+
 ### Value tooltips
 Hover any wire or pin to see its current value in binary, decimal, signed and hex. Turn it off with **Value tooltips** in Preferences.
 

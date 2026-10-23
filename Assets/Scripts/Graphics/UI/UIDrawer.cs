@@ -27,7 +27,8 @@ namespace DLS.Graphics
 			ChipStats,
 			TruthTable,
 			TestBench,
-			Expression
+			Expression,
+			NoteEdit
 		}
 
 		static MenuType activeMenuOld;
@@ -61,6 +62,7 @@ namespace DLS.Graphics
 
 		static void DrawProjectMenus(Project project)
 		{
+			NoteEditMenu.UpdatePendingPlacement(project);
 			MenuType menuToDraw = ActiveMenu; // cache state in case it changes while drawing/updating the menus
 
 			// Docked (not a MenuType, so the canvas above it stays usable); drawn before the bottom bar so its popups overlay it
@@ -85,6 +87,7 @@ namespace DLS.Graphics
 			else if (menuToDraw == MenuType.TruthTable) TruthTableMenu.DrawMenu();
 			else if (menuToDraw == MenuType.TestBench) TestBenchMenu.DrawMenu();
 			else if (menuToDraw == MenuType.Expression) ExpressionMenu.DrawMenu();
+			else if (menuToDraw == MenuType.NoteEdit) NoteEditMenu.DrawMenu();
 			else
 			{
 				bool showSimPausedBanner = project.simPaused;
@@ -128,6 +131,7 @@ namespace DLS.Graphics
 				else if (ActiveMenu == MenuType.TruthTable) TruthTableMenu.OnMenuOpened();
 				else if (ActiveMenu == MenuType.TestBench) TestBenchMenu.OnMenuOpened();
 				else if (ActiveMenu == MenuType.Expression) ExpressionMenu.OnMenuOpened();
+				else if (ActiveMenu == MenuType.NoteEdit) NoteEditMenu.OnMenuOpened();
 
 				if (InInputBlockingMenu() && Project.ActiveProject != null && Project.ActiveProject.controller != null)
 				{
@@ -163,6 +167,7 @@ namespace DLS.Graphics
 			ChipLibraryMenu.Reset();
 			SearchPopup.Reset();
 			TimingDiagramPanel.Reset();
+			NoteEditMenu.Reset();
 		}
 	}
 }

@@ -139,6 +139,12 @@ namespace DLS.Graphics
 			entries_inputDevPin[2]
 		};
 
+		static readonly MenuEntry[] entries_note =
+		{
+			new(Format("EDIT"), OpenNoteEditMenu, CanEditCurrentChip),
+			new(Format("DELETE"), Delete, CanDelete)
+		};
+
 		static readonly MenuEntry[] entries_wire =
 		{
 			new(Format("EDIT"), EditWire, CanEditWire),
@@ -252,10 +258,11 @@ namespace DLS.Graphics
 				bool openSubChipContextMenu = hoverElement is SubChipInstance && !inCustomizeMenu;
 				bool openDevPinContextMenu = (hoverElement is PinInstance pin && pin.parent is DevPinInstance) || hoverElement is DevPinInstance;
 				bool openWireContextMenu = hoverElement is WireInstance;
+				bool openNoteContextMenu = hoverElement is NoteInstance && !inCustomizeMenu;
 				bool openSubchipOutputPinContextMenu = hoverElement is PinInstance pin2 && pin2.parent is SubChipInstance && pin2.IsSourcePin && !pin2.IsBusPin;
 				bool openSubchipInputPinContextMenu = hoverElement is PinInstance pin3 && pin3.parent is SubChipInstance && !pin3.IsSourcePin && !pin3.IsBusPin && !inCustomizeMenu;
 
-				if (openSubChipContextMenu || openDevPinContextMenu || openWireContextMenu || openSubchipOutputPinContextMenu || openSubchipInputPinContextMenu)
+				if (openSubChipContextMenu || openDevPinContextMenu || openWireContextMenu || openNoteContextMenu || openSubchipOutputPinContextMenu || openSubchipInputPinContextMenu)
 				{
 					interactionContextName = string.Empty;
 					interactionContext = hoverElement;
@@ -302,6 +309,12 @@ namespace DLS.Graphics
 						else headerName = CreateWireHeaderString(wire);
 
 						activeContextMenuEntries = entries_wire;
+					}
+					else if (openNoteContextMenu)
+					{
+						headerName = "NOTE";
+						activeContextMenuEntries = entries_note;
+						Project.ActiveProject.controller.Select((NoteInstance)hoverElement, false);
 					}
 					else if (openSubchipOutputPinContextMenu)
 					{
@@ -631,6 +644,12 @@ namespace DLS.Graphics
 		static void OpenKeyBindMenu()
 		{
 			UIDrawer.SetActiveMenu(UIDrawer.MenuType.RebindKeyChip);
+		}
+
+		static void OpenNoteEditMenu()
+		{
+			NoteEditMenu.SetTarget((NoteInstance)interactionContext, false);
+			UIDrawer.SetActiveMenu(UIDrawer.MenuType.NoteEdit);
 		}
 
 		static void OpenRomEditMenu() => UIDrawer.SetActiveMenu(UIDrawer.MenuType.RomEdit);
