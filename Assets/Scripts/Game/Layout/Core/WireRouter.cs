@@ -19,6 +19,7 @@ namespace DLS.Game.Layout
 
 		sealed class Net
 		{
+			public int Index; // position in routing order, the occupancy owner id
 			public int SourcePinKey;
 			public int Key; // lowest connection key in the net
 			public bool HasTrunk, Complete;
@@ -30,7 +31,14 @@ namespace DLS.Game.Layout
 		sealed class RouteRecord
 		{
 			public LayoutConnection Connection;
+			public Net Net;
 			public RoutedConnection Result;
+			public WireQuery Query;
+			public readonly List<int> States = new(); // searched lattice path, start to goal
+			public int ArrivalDir; // goal's preferred arrival direction
+			public float Cost;
+			public int ResultIndex; // slot in result.Connections
+			public readonly List<int> Marks = new(); // occupancy handles
 		}
 
 		// Lattice nodes between a pin and its escape node (pin side inclusive, escape node exclusive)
@@ -59,6 +67,8 @@ namespace DLS.Game.Layout
 		{
 			readonly LayoutProblem problem;
 			readonly RoutingLattice lattice;
+			readonly RouterSettings settings;
+			readonly Occupancy occupancy;
 			readonly PathSearch search;
 			readonly int width;
 
@@ -69,6 +79,8 @@ namespace DLS.Game.Layout
 			readonly Dictionary<int, LayoutConnection> connectionByKey = new();
 			readonly Dictionary<int, RouteRecord> routedByKey = new();
 			readonly List<LayoutConnection> deferredWriters = new();
+			readonly Dictionary<int, List<LayoutConnection>> writersByTrunk = new(); // trunk key -> writers, key order
+			readonly Dictionary<int, RouteRecord> pendingByKey = new(); // improvement pass: rerouted, not yet kept
 
 			// Current net's tree: lattice node -> (lowest owner key, lowest segment index of that owner's final Points)
 			readonly int[] treeStamp, treeOwnerKey, treeOwnerSeg;
@@ -81,7 +93,11 @@ namespace DLS.Game.Layout
 			{
 				this.problem = problem;
 				this.lattice = lattice;
-				search = new PathSearch(lattice, settings);
+				this.settings = settings;
+				float maxHalfWidth = 0;
+				foreach (LayoutConnection c in problem.Connections) maxHalfWidth = Math.Max(maxHalfWidth, settings.HalfWidth(c.BitCount));
+				occupancy = new Occupancy(lattice, settings, maxHalfWidth);
+				search = new PathSearch(lattice, occupancy, settings);
 				width = lattice.Width;
 
 				int nodeCount = lattice.Width * lattice.Height;
@@ -93,6 +109,7 @@ namespace DLS.Game.Layout
 			public LayoutResult Run()
 			{
 				BuildNets();
+				MarkStubs();
 
 				foreach (Net net in nets)
 				{
@@ -102,6 +119,11 @@ namespace DLS.Game.Layout
 				}
 
 				foreach (LayoutConnection writer in deferredWriters) Fail(writer);
+
+				for (int pass = 0; pass < settings.ImprovementPasses; pass++)
+				{
+					foreach (Net net in nets) Improve(net);
+				}
 
 				failed.Sort((a, b) => a.Key.CompareTo(b.Key));
 				result.Connections.AddRange(failed);
@@ -125,7 +147,18 @@ namespace DLS.Game.Layout
 					}
 
 					net.Connections.Add(c);
-					if (IsWriter(c)) continue; // a writer ends on its trunk, not on its target pin
+					if (IsWriter(c))
+					{
+						if (!writersByTrunk.TryGetValue(c.TargetAttachToKey, out List<LayoutConnection> writers))
+						{
+							writers = new List<LayoutConnection>();
+							writersByTrunk.Add(c.TargetAttachToKey, writers);
+						}
+
+						writers.Add(c);
+						continue; // a writer ends on its trunk, not on its target pin
+					}
+
 					net.Pins.Add(c.TargetPinKey);
 					if (c.IsBusTrunk) net.HasTrunk = true;
 				}
@@ -139,6 +172,29 @@ namespace DLS.Game.Layout
 					int byKey = a.Key.CompareTo(b.Key);
 					return byKey != 0 ? byKey : a.SourcePinKey.CompareTo(b.SourcePinKey);
 				});
+				for (int i = 0; i < nets.Count; i++) nets[i].Index = i;
+			}
+
+			// Pin stubs never move, so they are marked once for the whole run (owned by the pin's net)
+			void MarkStubs()
+			{
+				List<int> marks = new();
+				foreach (Net net in nets)
+				{
+					LayoutConnection first = net.Connections[0];
+					MarkStub(net.SourcePinKey, new WireQuery(net.Index, first.Key, -1, settings.HalfWidth(first.BitCount)), marks);
+					foreach (LayoutConnection c in net.Connections)
+					{
+						if (!IsWriter(c)) MarkStub(c.TargetPinKey, new WireQuery(net.Index, c.Key, -1, settings.HalfWidth(c.BitCount)), marks);
+					}
+				}
+			}
+
+			void MarkStub(int pinKey, WireQuery query, List<int> marks)
+			{
+				if (!problem.Pins.TryGetValue(pinKey, out LayoutPin pin)) return;
+				(int ex, int ey) = lattice.EscapeNode(pin);
+				if (ex >= 0 && ey >= 0) occupancy.MarkStub(pin, ex, ey, query, marks);
 			}
 
 			float HalfPerimeter(Net net)
@@ -202,8 +258,25 @@ namespace DLS.Game.Layout
 						}
 					}
 
-					RouteConnection(net, c, source, sourceNode);
+					RouteAndCommit(net, c, source, sourceNode);
 				}
+			}
+
+			void RouteAndCommit(Net net, LayoutConnection c, LayoutPin source, int sourceNode)
+			{
+				RouteRecord record = RouteConnection(net, c, source, sourceNode);
+				if (record == null)
+				{
+					Fail(c);
+					return;
+				}
+
+				Mark(record);
+				record.ResultIndex = result.Connections.Count;
+				routedByKey.TryAdd(c.Key, record);
+				result.Connections.Add(record.Result);
+				result.TotalCost += record.Cost;
+				if (!IsWriter(c)) AddToTree(record);
 			}
 
 			// Writers whose trunk's net has finished; they always start at their source pin, so the tree is not needed
@@ -222,7 +295,7 @@ namespace DLS.Game.Layout
 					deferredWriters.RemoveAt(i);
 					Net net = netBySource[writer.SourcePinKey];
 					TryGetSource(net, out LayoutPin source, out int sourceNode);
-					RouteConnection(net, writer, source, sourceNode);
+					RouteAndCommit(net, writer, source, sourceNode);
 				}
 			}
 
@@ -281,10 +354,27 @@ namespace DLS.Game.Layout
 				return Math.Abs(s.X - t.X) + Math.Abs(s.Y - t.Y);
 			}
 
-			void RouteConnection(Net net, LayoutConnection c, LayoutPin source, int sourceNode)
+			// Searches a path for c against the current tree and occupancy; null if it cannot be routed. Has no side effects
+			// beyond the search itself.
+			RouteRecord RouteConnection(Net net, LayoutConnection c, LayoutPin source, int sourceNode)
 			{
 				bool writer = IsWriter(c);
-				search.Begin(net.Pins);
+				RouteRecord trunk = null;
+				LayoutPin target = default;
+				int tx = -1, ty = -1;
+				if (writer)
+				{
+					if (!TryGetRouted(c.TargetAttachToKey, out trunk)) return null;
+				}
+				else
+				{
+					if (!problem.Pins.TryGetValue(c.TargetPinKey, out target)) return null;
+					(tx, ty) = lattice.EscapeNode(target);
+					if (tx < 0 || ty < 0) return null;
+				}
+
+				WireQuery query = new(net.Index, c.Key, writer ? c.TargetAttachToKey : -1, settings.HalfWidth(c.BitCount));
+				search.Begin(net.Pins, query);
 
 				int sx = sourceNode % width, sy = sourceNode / width;
 				// A writer ends on its trunk, so it can only start at its source pin (a wire attaches to at most one wire)
@@ -298,16 +388,9 @@ namespace DLS.Game.Layout
 					}
 				}
 
-				LayoutPin target = default;
-				RouteRecord trunk = null;
+				int arrivalDir = PathSearch.AnyDir;
 				if (writer)
 				{
-					if (!routedByKey.TryGetValue(c.TargetAttachToKey, out trunk))
-					{
-						Fail(c);
-						return;
-					}
-
 					rasterNodes.Clear();
 					rasterSegs.Clear();
 					Rasterize(trunk, rasterNodes, rasterSegs);
@@ -315,31 +398,19 @@ namespace DLS.Game.Layout
 				}
 				else
 				{
-					if (!problem.Pins.TryGetValue(c.TargetPinKey, out target))
-					{
-						Fail(c);
-						return;
-					}
-
-					(int tx, int ty) = lattice.EscapeNode(target);
-					if (tx < 0 || ty < 0)
-					{
-						Fail(c);
-						return;
-					}
-
-					search.AddGoal(tx, ty, PathSearch.HorizontalDir(-target.ExitDirX));
+					arrivalDir = PathSearch.HorizontalDir(-target.ExitDirX);
+					search.AddGoal(tx, ty, arrivalDir);
 				}
 
-				if (!search.Run())
-				{
-					Fail(c);
-					return;
-				}
+				if (!search.Run()) return null;
 
+				RouteRecord record = new() { Connection = c, Net = net, Query = query, ArrivalDir = arrivalDir, Cost = search.PathCost };
 				RoutedConnection routed = new() { Key = c.Key, Routed = true, SourceAttach = AttachKind.Pin, TargetAttach = AttachKind.Pin };
-				List<LayoutPoint> points = new();
-				int startNode = search.StartNode;
+				record.Result = routed;
+				search.AppendStates(record.States);
+
+				List<LayoutPoint> points = new(record.States.Count + 2);
+				int startNode = record.States[0] >> 2;
 				if (startNode == sourceNode) points.Add(source.Position);
 				else
 				{
@@ -348,7 +419,7 @@ namespace DLS.Game.Layout
 					routed.AttachedSegmentIndex = treeOwnerSeg[startNode];
 				}
 
-				search.AppendPath(points);
+				foreach (int state in record.States) points.Add(lattice.Point((state >> 2) % width, (state >> 2) / width));
 
 				if (writer)
 				{
@@ -360,12 +431,83 @@ namespace DLS.Game.Layout
 
 				// Simplify keeps the first and last points, so attach points stay exact
 				routed.Points = Simplify(points);
+				return record;
+			}
 
-				RouteRecord record = new() { Connection = c, Result = routed };
-				routedByKey.TryAdd(c.Key, record);
-				result.Connections.Add(routed);
-				result.TotalCost += search.PathCost;
-				if (!writer) AddToTree(record);
+			bool TryGetRouted(int key, out RouteRecord record) => pendingByKey.TryGetValue(key, out record) || routedByKey.TryGetValue(key, out record);
+
+			void Mark(RouteRecord record) => occupancy.MarkPath(record.States, record.Query, record.Marks);
+
+			void Lift(RouteRecord record) => occupancy.Remove(record.Marks);
+
+			// Lifts the net (with writers from other nets that end on its trunks), reroutes it with every other wire in
+			// place, and keeps the new routing only if it routes everything again at no higher total cost.
+			// Costs on both sides are summed in reroute order with earlier group members marked, so the difference is the
+			// change in TotalCost.
+			void Improve(Net net)
+			{
+				List<RouteRecord> group = new();
+				TryGetSource(net, out LayoutPin source, out int sourceNode);
+				foreach (LayoutConnection c in OrderWithinNet(net, sourceNode))
+				{
+					if (routedByKey.TryGetValue(c.Key, out RouteRecord r) && r.Connection == c) group.Add(r);
+				}
+
+				foreach (LayoutConnection c in net.Connections)
+				{
+					if (!c.IsBusTrunk || IsWriter(c) || !writersByTrunk.TryGetValue(c.Key, out List<LayoutConnection> writers)) continue;
+					foreach (LayoutConnection w in writers)
+					{
+						if (netBySource[w.SourcePinKey] != net && routedByKey.TryGetValue(w.Key, out RouteRecord r) && r.Connection == w) group.Add(r);
+					}
+				}
+
+				if (group.Count == 0) return;
+
+				foreach (RouteRecord r in group) Lift(r);
+				float oldCost = 0;
+				foreach (RouteRecord r in group)
+				{
+					oldCost += search.Evaluate(r.States, r.ArrivalDir, r.Query);
+					Mark(r);
+				}
+
+				foreach (RouteRecord r in group) Lift(r);
+
+				ResetTree();
+				pendingByKey.Clear();
+				List<RouteRecord> rerouted = new(group.Count);
+				float newCost = 0;
+				foreach (RouteRecord r in group)
+				{
+					// Writers ignore the tree, so the same call serves writers from other nets
+					TryGetSource(r.Net, out LayoutPin ownerSource, out int ownerSourceNode);
+					RouteRecord fresh = RouteConnection(r.Net, r.Connection, ownerSource, ownerSourceNode);
+					if (fresh == null) break;
+					Mark(fresh);
+					rerouted.Add(fresh);
+					pendingByKey[fresh.Connection.Key] = fresh;
+					newCost += fresh.Cost;
+					if (r.Net == net && !IsWriter(fresh.Connection)) AddToTree(fresh);
+				}
+
+				pendingByKey.Clear();
+				if (rerouted.Count < group.Count || newCost > oldCost)
+				{
+					foreach (RouteRecord r in rerouted) Lift(r);
+					foreach (RouteRecord r in group) Mark(r);
+					return;
+				}
+
+				for (int i = 0; i < group.Count; i++)
+				{
+					RouteRecord fresh = rerouted[i];
+					fresh.ResultIndex = group[i].ResultIndex;
+					result.Connections[fresh.ResultIndex] = fresh.Result;
+					routedByKey[fresh.Connection.Key] = fresh;
+				}
+
+				result.TotalCost += newCost - oldCost;
 			}
 
 			void AddStartAllDirections(int node)
@@ -435,7 +577,7 @@ namespace DLS.Game.Layout
 					{
 						int iy = lattice.IndexOfY(a.Y);
 						if (iy < 0) continue;
-						int lo = FirstIndexAbove(lattice.Xs, Math.Min(a.X, b.X) - Eps), hi = FirstIndexAbove(lattice.Xs, Math.Max(a.X, b.X) + Eps) - 1;
+						int lo = RoutingLattice.FirstIndexAbove(lattice.Xs, Math.Min(a.X, b.X) - Eps), hi = RoutingLattice.FirstIndexAbove(lattice.Xs, Math.Max(a.X, b.X) + Eps) - 1;
 						if (a.X <= b.X)
 						{
 							for (int ix = lo; ix <= hi; ix++) Emit(ix, iy, seg);
@@ -449,7 +591,7 @@ namespace DLS.Game.Layout
 					{
 						int ix = lattice.IndexOfX(a.X);
 						if (ix < 0) continue;
-						int lo = FirstIndexAbove(lattice.Ys, Math.Min(a.Y, b.Y) - Eps), hi = FirstIndexAbove(lattice.Ys, Math.Max(a.Y, b.Y) + Eps) - 1;
+						int lo = RoutingLattice.FirstIndexAbove(lattice.Ys, Math.Min(a.Y, b.Y) - Eps), hi = RoutingLattice.FirstIndexAbove(lattice.Ys, Math.Max(a.Y, b.Y) + Eps) - 1;
 						if (a.Y <= b.Y)
 						{
 							for (int iy = lo; iy <= hi; iy++) Emit(ix, iy, seg);
@@ -484,20 +626,6 @@ namespace DLS.Game.Layout
 			List<LayoutConnection> sorted = new(indices.Length);
 			foreach (int i in indices) sorted.Add(connections[i]);
 			return sorted;
-		}
-
-		// First index whose value is >= v (values sorted ascending)
-		static int FirstIndexAbove(float[] values, float v)
-		{
-			int lo = 0, hi = values.Length;
-			while (lo < hi)
-			{
-				int mid = (lo + hi) / 2;
-				if (values[mid] < v) lo = mid + 1;
-				else hi = mid;
-			}
-
-			return lo;
 		}
 
 		// Removes duplicate points and the middle point of any collinear triple

@@ -155,7 +155,7 @@ namespace DLS.Game.Layout
 		}
 
 		// First index whose value is >= v (values sorted ascending)
-		static int FirstIndexAbove(float[] values, float v)
+		internal static int FirstIndexAbove(float[] values, float v)
 		{
 			int lo = 0, hi = values.Length;
 			while (lo < hi)

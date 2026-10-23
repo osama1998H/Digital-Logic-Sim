@@ -374,6 +374,162 @@ namespace LayoutTests
 			Assert.That(result.FailedCount, Is.EqualTo(2));
 		}
 
+		[TestCase(8)]
+		[TestCase(16)]
+		public void Route_ParallelNets_RespectWidthClearance(int wideBits)
+		{
+			RouterSettings settings = new();
+			LayoutProblem problem = new();
+			problem.Pins[1] = MakePin(1, 1, 1, 0, 1);
+			problem.Pins[2] = MakePin(2, 2, 3, 0, -1);
+			problem.Pins[1] = WithBits(problem.Pins[1], wideBits);
+			problem.Pins[2] = WithBits(problem.Pins[2], wideBits);
+			// The 1-bit net's pins sit on the wide net's row, so its shortest detour hugs the wide wire
+			problem.Pins[3] = MakePin(3, 3, 0, 0, 1);
+			problem.Pins[4] = MakePin(4, 4, 4, 0, -1);
+			problem.Connections.Add(new LayoutConnection { Key = 0, SourcePinKey = 1, TargetPinKey = 2, BitCount = wideBits });
+			problem.Connections.Add(MakeConnection(1, 3, 4));
+
+			LayoutResult result = WireRouter.Route(problem, settings);
+
+			Assert.That(result.FailedCount, Is.EqualTo(0));
+			float minGap = settings.HalfWidth(wideBits) + settings.HalfWidth(1) + settings.MinGap - 1e-3f;
+			AssertNoCollinearOverlapBetweenNets(problem, result, minGap);
+		}
+
+		[Test]
+		public void Route_DifferentNetsNeverShareCollinearSegments()
+		{
+			LayoutProblem problem = new();
+			// Ladder: left pins at y 0, 0.5, 1 wired to right pins in reverse order, so all three nets cross
+			problem.Pins[1] = MakePin(1, 1, 0, 0, 1);
+			problem.Pins[2] = MakePin(2, 1, 0, 0.5f, 1);
+			problem.Pins[3] = MakePin(3, 1, 0, 1, 1);
+			problem.Pins[4] = MakePin(4, 2, 3, 1, -1);
+			problem.Pins[5] = MakePin(5, 2, 3, 0.5f, -1);
+			problem.Pins[6] = MakePin(6, 2, 3, 0, -1);
+			problem.Connections.Add(MakeConnection(0, 1, 4));
+			problem.Connections.Add(MakeConnection(1, 2, 5));
+			problem.Connections.Add(MakeConnection(2, 3, 6));
+
+			LayoutResult result = WireRouter.Route(problem, new RouterSettings());
+
+			Assert.That(result.FailedCount, Is.EqualTo(0));
+			AssertNoCollinearOverlapBetweenNets(problem, result, 1e-3f);
+		}
+
+		[Test]
+		public void Route_ImprovementPassNeverIncreasesCost()
+		{
+			LayoutProblem problem = ChipGridProblem(4, 3, 12, 90, 3);
+
+			LayoutResult without = WireRouter.Route(problem, new RouterSettings { ImprovementPasses = 0 });
+			LayoutResult with = WireRouter.Route(problem, new RouterSettings { ImprovementPasses = 1 });
+
+			Assert.That(without.FailedCount, Is.EqualTo(0));
+			Assert.That(with.FailedCount, Is.EqualTo(0));
+			Assert.That(with.TotalCost, Is.LessThanOrEqualTo(without.TotalCost));
+			TestContext.Out.WriteLine($"TotalCost passes=0: {without.TotalCost}, passes=1: {with.TotalCost}");
+		}
+
+		[Test]
+		public void Route_200Connections_UnderTwoSeconds()
+		{
+			// 20 chips (5 columns x 4 rows), 200 connections between nearby columns
+			LayoutProblem problem = ChipGridProblem(5, 4, 16, 200, 1);
+			Assert.That(problem.Connections.Count, Is.EqualTo(200));
+
+			System.Diagnostics.Stopwatch stopwatch = System.Diagnostics.Stopwatch.StartNew();
+			LayoutResult result = WireRouter.Route(problem, new RouterSettings());
+			stopwatch.Stop();
+
+			TestContext.Out.WriteLine($"Route took {stopwatch.ElapsedMilliseconds} ms, TotalCost {result.TotalCost}");
+			Assert.That(result.FailedCount, Is.EqualTo(0));
+			Assert.That(stopwatch.ElapsedMilliseconds, Is.LessThan(2000));
+		}
+
+		static LayoutPin WithBits(LayoutPin pin, int bits)
+		{
+			pin.BitCount = bits;
+			return pin;
+		}
+
+		// Chips in a grid with inputs on the left edge and outputs on the right; each connection runs from an output to an
+		// unused input one column (sometimes two) to the right, in a nearby row. Output pins are 1-bit, occasionally 4-bit.
+		static LayoutProblem ChipGridProblem(int columns, int rows, int pinsPerSide, int connectionCount, int seed)
+		{
+			const float chipWidth = 1.5f, gapX = 4, gapY = 1.5f, pitch = 0.25f;
+			float chipHeight = (pinsPerSide + 1) * pitch;
+			Random rng = new(seed);
+			LayoutProblem problem = new();
+
+			int PinKey(int chip, bool output, int i) => chip * 1000 + (output ? 500 : 0) + i;
+
+			int[,] outBits = new int[columns * rows, pinsPerSide];
+			for (int c = 0; c < columns; c++)
+			{
+				for (int r = 0; r < rows; r++)
+				{
+					int chip = c * rows + r;
+					float x0 = c * (chipWidth + gapX), y0 = r * (chipHeight + gapY);
+					problem.Obstacles.Add(new LayoutRect(chip, x0, y0, x0 + chipWidth, y0 + chipHeight));
+					for (int i = 0; i < pinsPerSide; i++)
+					{
+						float y = y0 + (i + 1) * pitch;
+						outBits[chip, i] = rng.Next(8) == 0 ? 4 : 1;
+						problem.Pins[PinKey(chip, false, i)] = MakePin(PinKey(chip, false, i), chip, x0, y, -1);
+						problem.Pins[PinKey(chip, true, i)] = WithBits(MakePin(PinKey(chip, true, i), chip, x0 + chipWidth, y, 1), outBits[chip, i]);
+					}
+				}
+			}
+
+			HashSet<int> usedInputs = new();
+			while (problem.Connections.Count < connectionCount)
+			{
+				int sc = rng.Next(columns - 1), sr = rng.Next(rows), so = rng.Next(pinsPerSide);
+				int tc = Math.Min(columns - 1, sc + 1 + (rng.Next(5) == 0 ? 1 : 0));
+				int tr = Math.Clamp(sr + rng.Next(3) - 1, 0, rows - 1);
+				int tChip = tc * rows + tr, first = rng.Next(pinsPerSide), ti = -1;
+				for (int k = 0; k < pinsPerSide && ti < 0; k++)
+				{
+					int i = (first + k) % pinsPerSide;
+					if (!usedInputs.Contains(PinKey(tChip, false, i))) ti = i;
+				}
+
+				if (ti < 0) continue;
+				int source = PinKey(sc * rows + sr, true, so), target = PinKey(tChip, false, ti);
+				int bits = outBits[sc * rows + sr, so];
+				usedInputs.Add(target);
+				problem.Pins[target] = WithBits(problem.Pins[target], bits);
+				problem.Connections.Add(new LayoutConnection { Key = problem.Connections.Count, SourcePinKey = source, TargetPinKey = target, BitCount = bits });
+			}
+
+			return problem;
+		}
+
+		// Every segment of a routed connection, including its pin stubs, against every segment of another net's connections
+		static void AssertNoCollinearOverlapBetweenNets(LayoutProblem problem, LayoutResult result, float minGap)
+		{
+			Dictionary<int, int> sourceByKey = new();
+			foreach (LayoutConnection c in problem.Connections) sourceByKey[c.Key] = c.SourcePinKey;
+
+			foreach (RoutedConnection a in result.Connections)
+			{
+				foreach (RoutedConnection b in result.Connections)
+				{
+					if (!a.Routed || !b.Routed || sourceByKey[a.Key] == sourceByKey[b.Key]) continue;
+					for (int i = 0; i < a.Points.Count - 1; i++)
+					{
+						for (int j = 0; j < b.Points.Count - 1; j++)
+						{
+							bool overlap = TestGeometry.SegmentsOverlapCollinear(a.Points[i], a.Points[i + 1], b.Points[j], b.Points[j + 1], minGap);
+							Assert.That(overlap, Is.False, $"connection {a.Key} segment {i} vs connection {b.Key} segment {j}");
+						}
+					}
+				}
+			}
+		}
+
 		static RoutedConnection Find(LayoutResult result, int key)
 		{
 			RoutedConnection c = result.Connections.Find(r => r.Key == key);

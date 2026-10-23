@@ -5,15 +5,28 @@ namespace DLS.Game.Layout
 {
 	// A* from a set of start states to a set of goal nodes. State = node * 4 + dir, node = iy * Width + ix.
 	// Each goal node may have a preferred arrival direction; arriving any other way costs BendCost.
+	// Steps also pay the occupancy's clearance and crossing costs for the current query's wire.
 	internal sealed class PathSearch
 	{
 		public const int DirPosX = 0, DirNegX = 1, DirPosY = 2, DirNegY = 3, AnyDir = -1;
 		static readonly int[] stepX = { 1, -1, 0, 0 };
 		static readonly int[] stepY = { 0, 0, 1, -1 };
 
+		// MinTurns[(dir * 16 + requiredDirMask) * 5 + arrival] (arrival 0..3 = preferred direction, 4 = any): fewest
+		// direction changes (no reversals) from dir that use every required direction, plus one if the last direction
+		// differs from the preferred arrival
+		static readonly int[] MinTurns = BuildMinTurns();
+
 		readonly RoutingLattice lattice;
+		readonly Occupancy occupancy;
 		readonly int width, height, windowMargin;
 		readonly float bendCost, invGrid;
+		readonly float[] stepX1, stepY1; // length in cells of the step from index i to i + 1
+		readonly bool[] blocked;
+		readonly float[] distX, distY, turnPenalty; // per query: heuristic distance terms by column / row, MinTurns * BendCost
+		readonly int[] requiredX, requiredY; // per query: direction bits that must still be travelled, by column / row
+		readonly int[] markHeads; // occupancy list heads, to skip empty lists without a call
+		readonly int nodeMarkBase;
 
 		readonly float[] gScore;
 		readonly int[] parent;
@@ -26,22 +39,45 @@ namespace DLS.Game.Layout
 		readonly List<float> startCosts = new();
 		readonly List<int> goalNodes = new();
 		HashSet<int> netPins;
+		WireQuery query;
+		int arrivalSlot; // MinTurns arrival index: the single preferred arrival direction shared by all goals, else 4
 		float goalMinX, goalMinY, goalMaxX, goalMaxY;
 		int winX0, winY0, winX1, winY1;
 
 		int bestState;
 		public float PathCost { get; private set; }
 
-		public PathSearch(RoutingLattice lattice, RouterSettings settings)
+		public PathSearch(RoutingLattice lattice, Occupancy occupancy, RouterSettings settings)
 		{
 			this.lattice = lattice;
+			this.occupancy = occupancy;
 			width = lattice.Width;
 			height = lattice.Height;
 			windowMargin = settings.WindowMarginCells;
 			bendCost = settings.BendCost;
 			invGrid = 1 / settings.GridSize;
 
+			stepX1 = new float[Math.Max(0, width - 1)];
+			for (int i = 0; i < stepX1.Length; i++) stepX1[i] = (lattice.Xs[i + 1] - lattice.Xs[i]) * invGrid;
+			stepY1 = new float[Math.Max(0, height - 1)];
+			for (int i = 0; i < stepY1.Length; i++) stepY1[i] = (lattice.Ys[i + 1] - lattice.Ys[i]) * invGrid;
+
 			int nodeCount = width * height;
+			blocked = new bool[nodeCount];
+			for (int iy = 0; iy < height; iy++)
+			{
+				for (int ix = 0; ix < width; ix++) blocked[iy * width + ix] = lattice.IsBlocked(ix, iy);
+			}
+
+			distX = new float[width];
+			distY = new float[height];
+			requiredX = new int[width];
+			requiredY = new int[height];
+			turnPenalty = new float[MinTurns.Length];
+			for (int i = 0; i < MinTurns.Length; i++) turnPenalty[i] = MinTurns[i] * bendCost;
+
+			markHeads = occupancy.Heads;
+			nodeMarkBase = occupancy.NodeListBase;
 			gScore = new float[nodeCount * 4];
 			parent = new int[nodeCount * 4];
 			stateStamp = new int[nodeCount * 4];
@@ -53,10 +89,11 @@ namespace DLS.Game.Layout
 		public static int HorizontalDir(int dirX) => dirX >= 0 ? DirPosX : DirNegX;
 
 		// Starts a new query; reserved escape nodes of pins in netPins are passable
-		public void Begin(HashSet<int> netPins)
+		public void Begin(HashSet<int> netPins, WireQuery query)
 		{
 			queryGen++;
 			this.netPins = netPins;
+			this.query = query;
 			startStates.Clear();
 			startCosts.Clear();
 			goalNodes.Clear();
@@ -89,22 +126,14 @@ namespace DLS.Game.Layout
 				goalMaxY = Math.Max(goalMaxY, p.Y);
 			}
 
+			int slot = preferredArrivalDir == AnyDir ? 4 : preferredArrivalDir;
+			arrivalSlot = goalNodes.Count == 0 || slot == arrivalSlot ? slot : 4;
 			goalStamp[node] = queryGen;
 			goalDir[node] = preferredArrivalDir;
 			goalNodes.Add(node);
 		}
 
-		// Node where the found path starts / ends
-		public int StartNode
-		{
-			get
-			{
-				int s = bestState;
-				while (parent[s] >= 0) s = parent[s];
-				return s >> 2;
-			}
-		}
-
+		// Node where the found path ends
 		public int EndNode => bestState >> 2;
 
 		// Searches the bounding box of starts and goals expanded by WindowMarginCells, then the full lattice
@@ -115,6 +144,7 @@ namespace DLS.Game.Layout
 			if (startStates.Count == 0 || goalNodes.Count == 0) return false;
 
 			SetWindowAroundQuery();
+			PrepareHeuristic();
 			if (Search()) return true;
 			if (winX0 == 0 && winY0 == 0 && winX1 == width - 1 && winY1 == height - 1) return false;
 
@@ -146,15 +176,52 @@ namespace DLS.Game.Layout
 
 				int node = state >> 2, dir = state & 3;
 				int ix = node % width, iy = node / width;
+				float straightCost = 0, turnCost = 0;
+				if (parent[state] >= 0 && markHeads[nodeMarkBase + node] >= 0) occupancy.NodeCosts(node, dir >> 1, query, out straightCost, out turnCost);
 				for (int nd = 0; nd < 4; nd++)
 				{
 					if (nd == (dir ^ 1)) continue; // no reversing
 					int nx = ix + stepX[nd], ny = iy + stepY[nd];
-					if (!InWindow(nx, ny) || !Passable(nx, ny)) continue;
+					if (nx < winX0 || nx > winX1 || ny < winY0 || ny > winY1) continue;
+					int next = ny * width + nx;
+					if (blocked[next] && !PassableBlocked(next)) continue;
 
-					float step = nd < 2 ? Math.Abs(lattice.Xs[nx] - lattice.Xs[ix]) : Math.Abs(lattice.Ys[ny] - lattice.Ys[iy]);
-					float cost = g + step * invGrid + (nd != dir ? bendCost : 0);
-					Relax((ny * width + nx) * 4 + nd, cost, state, ref bestCost);
+					// Same arithmetic as StepCost
+					float length, edge = 0;
+					int list;
+					switch (nd)
+					{
+						case DirPosX:
+							length = stepX1[ix];
+							list = node * 2;
+							break;
+						case DirNegX:
+							length = stepX1[nx];
+							list = next * 2;
+							break;
+						case DirPosY:
+							length = stepY1[iy];
+							list = node * 2 + 1;
+							break;
+						default:
+							length = stepY1[ny];
+							list = next * 2 + 1;
+							break;
+					}
+
+					if (markHeads[list] >= 0) edge = occupancy.EdgeCost(list, query);
+					float cost = g + length + (nd != dir ? bendCost : 0) + ((nd == dir ? straightCost : turnCost) + edge);
+
+					// Relax, inlined
+					int nextState = next * 4 + nd;
+					if (stateStamp[nextState] == stateGen && cost >= gScore[nextState]) continue;
+					stateStamp[nextState] = stateGen;
+					gScore[nextState] = cost;
+					parent[nextState] = state;
+					float h = distX[nx] + distY[ny] + turnPenalty[(nd * 16 + (requiredX[nx] | requiredY[ny])) * 5 + arrivalSlot];
+					if (cost + h >= bestCost) continue; // could never be expanded, nor beat bestCost as a goal
+					heap.Push(cost + h, cost, nextState);
+					if (goalStamp[next] == queryGen) ConsiderGoal(nextState, cost, true, ref bestCost);
 				}
 			}
 
@@ -163,17 +230,50 @@ namespace DLS.Game.Layout
 			return true;
 		}
 
-		// Appends the lattice points of the found path, start to goal
-		public void AppendPath(List<LayoutPoint> points)
+		// Cost of a path given as states (AppendStates order) for the query's wire under the current occupancy, computed
+		// exactly as Search would; preferredArrivalDir is the goal's
+		public float Evaluate(List<int> states, int preferredArrivalDir, WireQuery query)
 		{
-			int first = points.Count;
-			for (int s = bestState; s >= 0; s = parent[s])
+			this.query = query;
+			float g = 0;
+			for (int i = 1; i < states.Count; i++)
 			{
-				int node = s >> 2;
-				points.Add(lattice.Point(node % width, node / width));
+				int state = states[i - 1], node = state >> 2, dir = state & 3, nd = states[i] & 3;
+				float nodeCost = 0;
+				if (i > 1)
+				{
+					occupancy.NodeCosts(node, dir >> 1, query, out float straightCost, out float turnCost);
+					nodeCost = nd == dir ? straightCost : turnCost;
+				}
+
+				g = StepCost(g, node, dir, nd, nodeCost);
 			}
 
-			points.Reverse(first, points.Count - first);
+			int last = states[states.Count - 1];
+			return GoalCost(g, last, preferredArrivalDir, states.Count > 1);
+		}
+
+		float StepCost(float g, int node, int dir, int nd, float nodeCost)
+		{
+			int ix = node % width, iy = node / width;
+			float length = nd == DirPosX ? stepX1[ix] : nd == DirNegX ? stepX1[ix - 1] : nd == DirPosY ? stepY1[iy] : stepY1[iy - 1];
+			float edge = occupancy.EdgeCost(occupancy.EdgeList(node, nd), query);
+			return g + length + (nd != dir ? bendCost : 0) + (nodeCost + edge);
+		}
+
+		// Total on arriving at a goal: wrong arrival direction costs a bend; ending on another net's node is a violation
+		float GoalCost(float cost, int state, int preferred, bool moved)
+		{
+			float arrival = preferred != AnyDir && preferred != (state & 3) ? bendCost : 0;
+			return cost + arrival + (moved ? occupancy.EndCost(state >> 2, query) : 0);
+		}
+
+		// States of the found path, start to goal
+		public void AppendStates(List<int> states)
+		{
+			int first = states.Count;
+			for (int s = bestState; s >= 0; s = parent[s]) states.Add(s);
+			states.Reverse(first, states.Count - first);
 		}
 
 		void Relax(int state, float cost, int from, ref float bestCost)
@@ -185,36 +285,93 @@ namespace DLS.Game.Layout
 
 			int node = state >> 2;
 			int ix = node % width, iy = node / width;
-			heap.Push(cost + Heuristic(ix, iy), cost, state);
+			heap.Push(cost + Heuristic(ix, iy, state & 3), cost, state);
+			if (goalStamp[node] == queryGen) ConsiderGoal(state, cost, from >= 0, ref bestCost);
+		}
 
-			if (goalStamp[node] == queryGen)
+		void ConsiderGoal(int state, float cost, bool moved, ref float bestCost)
+		{
+			float total = GoalCost(cost, state, goalDir[state >> 2], moved);
+			if (total < bestCost)
 			{
-				int preferred = goalDir[node];
-				float total = cost + (preferred != AnyDir && preferred != (state & 3) ? bendCost : 0);
-				if (total < bestCost)
-				{
-					bestCost = total;
-					bestState = state;
-				}
+				bestCost = total;
+				bestState = state;
 			}
 		}
 
-		float Heuristic(int ix, int iy)
+		// Manhattan distance to the goal box plus the bends any path from this direction must make: it has to travel in
+		// each direction toward the box, and (with a single preferred arrival direction) arrive in it or pay a bend
+		float Heuristic(int ix, int iy, int dir) => distX[ix] + distY[iy] + turnPenalty[(dir * 16 + (requiredX[ix] | requiredY[iy])) * 5 + arrivalSlot];
+
+		void PrepareHeuristic()
 		{
-			float x = lattice.Xs[ix], y = lattice.Ys[iy];
-			float dx = x < goalMinX ? goalMinX - x : x > goalMaxX ? x - goalMaxX : 0;
-			float dy = y < goalMinY ? goalMinY - y : y > goalMaxY ? y - goalMaxY : 0;
-			return (dx + dy) * invGrid;
+			for (int ix = 0; ix < width; ix++)
+			{
+				float x = lattice.Xs[ix];
+				distX[ix] = x < goalMinX ? (goalMinX - x) * invGrid : x > goalMaxX ? (x - goalMaxX) * invGrid : 0;
+				requiredX[ix] = x < goalMinX ? 1 << DirPosX : x > goalMaxX ? 1 << DirNegX : 0;
+			}
+
+			for (int iy = 0; iy < height; iy++)
+			{
+				float y = lattice.Ys[iy];
+				distY[iy] = y < goalMinY ? (goalMinY - y) * invGrid : y > goalMaxY ? (y - goalMaxY) * invGrid : 0;
+				requiredY[iy] = y < goalMinY ? 1 << DirPosY : y > goalMaxY ? 1 << DirNegY : 0;
+			}
+		}
+
+		static int[] BuildMinTurns()
+		{
+			int[] table = new int[4 * 16 * 5];
+			int[] dist = new int[4 * 16];
+			Queue<int> queue = new();
+			for (int dir = 0; dir < 4; dir++)
+			{
+				for (int required = 0; required < 16; required++)
+				{
+					// Breadth-first over (direction, required directions used so far)
+					Array.Fill(dist, -1);
+					int start = dir * 16 + (required & (1 << dir));
+					dist[start] = 0;
+					queue.Enqueue(start);
+					while (queue.Count > 0)
+					{
+						int s = queue.Dequeue(), d = s >> 4, used = s & 15;
+						for (int nd = 0; nd < 4; nd++)
+						{
+							if (nd == d || nd == (d ^ 1)) continue;
+							int next = nd * 16 + (used | (required & (1 << nd)));
+							if (dist[next] >= 0) continue;
+							dist[next] = dist[s] + 1;
+							queue.Enqueue(next);
+						}
+					}
+
+					for (int arrival = 0; arrival < 5; arrival++)
+					{
+						int best = int.MaxValue;
+						for (int d = 0; d < 4; d++)
+						{
+							int turns = dist[d * 16 + required];
+							if (turns < 0) continue;
+							best = Math.Min(best, turns + (arrival < 4 && d != arrival ? 1 : 0));
+						}
+
+						table[(dir * 16 + required) * 5 + arrival] = best;
+					}
+				}
+			}
+
+			return table;
 		}
 
 		bool InWindow(int ix, int iy) => ix >= winX0 && ix <= winX1 && iy >= winY0 && iy <= winY1;
 
-		bool Passable(int ix, int iy)
+		// A blocked node is passable as a start or goal of this query, or as the reserved escape node of a pin in its net
+		bool PassableBlocked(int node)
 		{
-			if (!lattice.IsBlocked(ix, iy)) return true;
-			int node = iy * width + ix;
 			if (startStamp[node] == queryGen || goalStamp[node] == queryGen) return true;
-			int reservedKey = lattice.ReservedPinKey(ix, iy);
+			int reservedKey = lattice.ReservedPinKey(node % width, node / width);
 			return reservedKey != -1 && netPins != null && netPins.Contains(reservedKey);
 		}
 
@@ -241,36 +398,37 @@ namespace DLS.Game.Layout
 		}
 	}
 
-	// Binary min-heap ordered by f, then higher g (deeper first), then insertion order
+	// Binary min-heap ordered by f, then higher g (deeper first); remaining ties fall to the (deterministic) heap order.
+	// f and g are non-negative, so their bit patterns order like the values and pack into one integer key.
 	internal sealed class MinHeap
 	{
-		struct Entry
-		{
-			public float F, G;
-			public int Seq, State;
-		}
+		ulong[] keys = new ulong[256];
+		int[] states = new int[256];
+		int count;
 
-		Entry[] entries = new Entry[256];
-		int count, nextSeq;
-
-		public void Clear()
-		{
-			count = 0;
-			nextSeq = 0;
-		}
+		public void Clear() => count = 0;
 
 		public void Push(float f, float g, int state)
 		{
-			if (count == entries.Length) Array.Resize(ref entries, entries.Length * 2);
-			entries[count] = new Entry { F = f, G = g, Seq = nextSeq++, State = state };
+			if (count == keys.Length)
+			{
+				Array.Resize(ref keys, keys.Length * 2);
+				Array.Resize(ref states, states.Length * 2);
+			}
+
+			ulong key = ((ulong)(uint)BitConverter.SingleToInt32Bits(f) << 32) | (uint.MaxValue - (uint)BitConverter.SingleToInt32Bits(g));
 			int i = count++;
 			while (i > 0)
 			{
-				int p = (i - 1) / 2;
-				if (!Less(entries[i], entries[p])) break;
-				(entries[i], entries[p]) = (entries[p], entries[i]);
+				int p = (i - 1) >> 1;
+				if (keys[p] <= key) break;
+				keys[i] = keys[p];
+				states[i] = states[p];
 				i = p;
 			}
+
+			keys[i] = key;
+			states[i] = state;
 		}
 
 		public bool TryPop(out float f, out float g, out int state)
@@ -282,31 +440,28 @@ namespace DLS.Game.Layout
 				return false;
 			}
 
-			Entry top = entries[0];
-			f = top.F;
-			g = top.G;
-			state = top.State;
+			ulong top = keys[0];
+			f = BitConverter.Int32BitsToSingle((int)(top >> 32));
+			g = BitConverter.Int32BitsToSingle((int)(uint.MaxValue - (uint)top));
+			state = states[0];
 
-			entries[0] = entries[--count];
-			int i = 0;
+			count--;
+			ulong lastKey = keys[count];
+			int lastState = states[count], i = 0;
 			while (true)
 			{
-				int l = i * 2 + 1, r = l + 1, smallest = i;
-				if (l < count && Less(entries[l], entries[smallest])) smallest = l;
-				if (r < count && Less(entries[r], entries[smallest])) smallest = r;
-				if (smallest == i) break;
-				(entries[i], entries[smallest]) = (entries[smallest], entries[i]);
-				i = smallest;
+				int child = i * 2 + 1;
+				if (child >= count) break;
+				if (child + 1 < count && keys[child + 1] < keys[child]) child++;
+				if (keys[child] >= lastKey) break;
+				keys[i] = keys[child];
+				states[i] = states[child];
+				i = child;
 			}
 
+			keys[i] = lastKey;
+			states[i] = lastState;
 			return true;
-		}
-
-		static bool Less(Entry a, Entry b)
-		{
-			if (a.F != b.F) return a.F < b.F;
-			if (a.G != b.G) return a.G > b.G;
-			return a.Seq < b.Seq;
 		}
 	}
 }
