@@ -20,6 +20,8 @@ namespace DLS.Game.Logic
 
 	public static class ExprParser
 	{
+		public const int MaxNameLength = 16;
+
 		enum T { Ident, Number, Not, Tick, And, Or, Xor, LParen, RParen, Eq, Sep, Invalid, End }
 
 		struct Token
@@ -232,7 +234,10 @@ namespace DLS.Game.Logic
 					int start = i;
 					while (i < text.Length && (IsAlnum(text[i]) || text[i] == '_')) i++;
 					T type = IsDigit(c) ? T.Number : T.Ident;
-					Add(tokens, type, text.Substring(start, i - start), start);
+					string word = text.Substring(start, i - start);
+					// Names become pin names, which the pin editor limits to this length
+					if (type == T.Ident && word.Length > MaxNameLength) throw new ParseError($"Name '{word.Substring(0, MaxNameLength)}…' is longer than {MaxNameLength} characters", start);
+					Add(tokens, type, word, start);
 					continue;
 				}
 				T t = c switch

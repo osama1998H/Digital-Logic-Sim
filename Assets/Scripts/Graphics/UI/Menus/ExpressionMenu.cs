@@ -31,6 +31,11 @@ namespace DLS.Graphics
 		static GateLibrary gates;
 		static string text = string.Empty; // kept between openings
 
+		// Outcome of the last GENERATE, shown when the menu is reopened for it (the menu may already be closed, e.g. on the new-chip path)
+		static string generateError; // shown in the full menu until the input changes
+		static string generateNotice; // shown on its own with an OK button
+		static string generateErrorText;
+
 		// Preview, rebuilt only when its inputs change
 		static string cachedText;
 		static GateSet cachedGateSet;
@@ -46,6 +51,8 @@ namespace DLS.Graphics
 			gates?.Cancel();
 			gates = GateLibrary.VerifyAsync(project.chipLibrary);
 			cachedText = null;
+			generateError = null;
+			generateNotice = null;
 			UIDrawer.SetActiveMenu(UIDrawer.MenuType.Expression);
 		}
 
@@ -64,6 +71,12 @@ namespace DLS.Graphics
 			if (gates == null) // only Open() starts the gate check
 			{
 				UIDrawer.SetActiveMenu(UIDrawer.MenuType.None);
+				return;
+			}
+
+			if (generateNotice != null)
+			{
+				DrawNotice();
 				return;
 			}
 
@@ -91,6 +104,7 @@ namespace DLS.Graphics
 				InputFieldState state = UI.InputField(ID_Input, inputTheme, topLeft, new Vector2(width, ButtonHeight), ExampleText, Anchor.TopLeft, TextPad, ValidateInput, true);
 				Bounds2D fieldBounds = UI.PrevBounds;
 				text = NormalizeInput(state);
+				if (generateError != null && text != generateErrorText) generateError = null;
 
 				Refresh(text, EffectiveGates(gates, nandOnly, target), nandOnly || ready);
 				bool hasText = !string.IsNullOrWhiteSpace(text);
@@ -126,7 +140,14 @@ namespace DLS.Graphics
 					topLeft = UI.PrevBounds.BottomLeft + Vector2.down * 0.6f;
 				}
 
-				bool canGenerate = ready && hasText && parsed.Success && netlist is { Success: true };
+				if (generateError != null)
+				{
+					UI.DrawText(generateError, theme.FontRegular, theme.FontSizeRegular, topLeft, Anchor.TopLeft, errorCol);
+					topLeft = UI.PrevBounds.BottomLeft + Vector2.down * 0.6f;
+				}
+
+				// NAND-only doesn't use the user's gates, so it needn't wait for their check
+				bool canGenerate = (nandOnly || ready) && hasText && parsed.Success && netlist is { Success: true };
 				int button = MenuHelper.DrawButtonPair("GENERATE", "CANCEL", topLeft, width, true, canGenerate);
 
 				MenuHelper.DrawReservedMenuPanel(panelID, UI.GetCurrentBoundsScope());
@@ -232,9 +253,47 @@ namespace DLS.Graphics
 
 			void GenerateInto(DevChipInstance chip)
 			{
-				Netlist result = NetlistBuilder.Build(ExprParser.Parse(source), EffectiveGates(gateLibrary, nandOnly, chip));
-				string error = CircuitGenerator.Generate(result, gateLibrary, chip);
-				if (error != null && Application.isEditor) Debug.LogWarning("Generate from expression failed: " + error);
+				string error;
+				string notice = null;
+				try
+				{
+					Netlist result = NetlistBuilder.Build(ExprParser.Parse(source), EffectiveGates(gateLibrary, nandOnly, chip));
+					error = CircuitGenerator.Generate(result, gateLibrary, chip, out notice);
+				}
+				catch (Exception e)
+				{
+					error = "Generation failed: " + e.Message;
+					Debug.LogException(e);
+				}
+
+				if (error == null && notice == null) return;
+
+				// Reopen the menu to tell the user (it is closed by now)
+				if (error != null) Debug.LogWarning("Generate from expression failed: " + error);
+				generateError = error;
+				generateErrorText = source;
+				generateNotice = error == null ? notice : null;
+				UIDrawer.SetActiveMenu(UIDrawer.MenuType.Expression);
+			}
+		}
+
+		static void DrawNotice()
+		{
+			MenuHelper.DrawBackgroundOverlay();
+			Draw.ID panelID = UI.ReservePanel();
+
+			using (UI.BeginBoundsScope(true))
+			{
+				UI.DrawText(generateNotice, ActiveUITheme.FontRegular, ActiveUITheme.FontSizeRegular, UI.Centre + Vector2.up * 3, Anchor.TextCentre, Color.white);
+				Bounds2D textBounds = UI.PrevBounds;
+				bool ok = UI.Button("OK", ActiveUITheme.ButtonTheme, textBounds.CentreBottom + Vector2.down * 1f, new Vector2(textBounds.Width, ButtonHeight), true, false, false, Anchor.CentreTop);
+				MenuHelper.DrawReservedMenuPanel(panelID, UI.GetCurrentBoundsScope());
+
+				if (ok || KeyboardShortcuts.ConfirmShortcutTriggered || KeyboardShortcuts.CancelShortcutTriggered)
+				{
+					generateNotice = null;
+					UIDrawer.SetActiveMenu(UIDrawer.MenuType.None);
+				}
 			}
 		}
 

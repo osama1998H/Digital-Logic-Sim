@@ -17,19 +17,23 @@ namespace DLS.Game.Logic
 		const float TempColumnSpacing = 1.5f;
 		const float TempRowSpacing = 1.5f;
 
-		// Returns null on success, otherwise the reason nothing was generated
-		public static string Generate(Netlist netlist, GateLibrary gates, DevChipInstance chip)
+		public const string LayoutFailedNotice = "Generated, but the wires couldn't be tidied. Try Tidy Wires (Ctrl+T).";
+
+		// Returns null on success, otherwise the reason nothing (or only part of the circuit) was generated.
+		// notice is set when the circuit was generated but something minor went wrong.
+		public static string Generate(Netlist netlist, GateLibrary gates, DevChipInstance chip, out string notice)
 		{
+			notice = null;
 			Project project = Project.ActiveProject;
 			if (!netlist.Success) return netlist.Error;
 			if (project == null || !project.CanEditViewedChip || chip != project.ViewedChip) return "The chip can't be edited";
 			if (chip.Elements.Count > 0 || chip.Wires.Count > 0) return "The chip must be empty";
-			if (!gates.IsReady) return "Still checking your gate chips";
 
 			ChipLibrary library = project.chipLibrary;
 			foreach (Gate gate in netlist.Gates)
 			{
-				if (!gates.Has(gate.Kind)) return $"No {GateCheck.ChipName(gate.Kind)} chip available";
+				// Only user gate kinds need the (asynchronous) gate check; NAND is always available
+				if (!gates.Has(gate.Kind)) return gates.IsReady ? $"No usable {GateCheck.ChipName(gate.Kind)} chip" : "Still checking your gate chips";
 				string name = gates.ChipNameFor(gate.Kind);
 				if (!library.HasChip(name) || !chip.CanAddSubchip(name)) return $"The {name} chip can't be used here";
 			}
@@ -88,12 +92,17 @@ namespace DLS.Game.Logic
 			{
 				// Keep "one undo step removes everything" true even for a half-built circuit
 				if (added.Count > 0) chip.UndoController.RecordAddElements(added, true);
+				Debug.LogWarning("Generating the circuit failed: " + e);
 				return "Generation failed: " + e.Message;
 			}
 
 			// A failed layout still leaves a working circuit (with straight wires), so it isn't an error
 			string layoutFailure = LayOut(chip);
-			if (layoutFailure != null && Application.isEditor) Debug.LogError("Generated circuit layout failed: " + layoutFailure);
+			if (layoutFailure != null)
+			{
+				Debug.LogWarning("Generated circuit layout failed: " + layoutFailure);
+				notice = LayoutFailedNotice;
+			}
 
 			// Recorded last: the undo step snapshots the final positions and wires
 			chip.UndoController.RecordAddElements(added, true);

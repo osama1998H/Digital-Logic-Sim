@@ -100,5 +100,15 @@ namespace LayoutTests
 			Assert.That(ExprParser.Parse(new string('!', 1000) + "A").Success, Is.False);
 			Assert.That(ExprParser.Parse(new string('(', 20) + "A" + new string(')', 20)).Success, Is.True);
 		}
+
+		[Test] public void LongName_IsErrorWithPosition()
+		{
+			var r = ExprParser.Parse("Y = A * CARRY_IN_FROM_STAGE_2");
+			Assert.That(r.Success, Is.False);
+			Assert.That(r.Error, Does.StartWith("Name 'CARRY_IN_FROM_ST…' is longer than 16 characters"));
+			Assert.That(r.ErrorIndex, Is.EqualTo(8));
+			Assert.That(ExprParser.Parse("THIS_OUTPUT_NAME_IS_LONG = A").ErrorIndex, Is.EqualTo(0));
+			Assert.That(ExprParser.Parse("Y = A * ABCDEFGHIJKLMNOP").Success, Is.True); // exactly 16
+		}
 	}
 }

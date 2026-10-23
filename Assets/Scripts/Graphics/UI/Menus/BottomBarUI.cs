@@ -30,7 +30,7 @@ namespace DLS.Graphics
 			"STATISTICS",
 			$"TRUTH TABLE  {shortcutTextCol}Ctrl+Shift+Y",
 			$"TEST BENCH   {shortcutTextCol}Ctrl+B",
-			$"FROM EXPRESSION {shortcutTextCol}Ctrl+Shift+G",
+			$"EXPRESSION   {shortcutTextCol}Ctrl+Shift+G",
 			$"LIBRARY      {shortcutTextCol}Ctrl+L",
 			$"PREFS        {shortcutTextCol}Ctrl+P",
 			$"QUIT         {shortcutTextCol}Ctrl+Q"

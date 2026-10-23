@@ -62,7 +62,7 @@ Right-click a chip and choose **Test Bench**, or press **Ctrl+B** for the chip y
 Hover any wire or pin to see its current value in binary, decimal, signed and hex. Turn it off with **Value tooltips** in Preferences.
 
 ### Expression to circuit
-**FROM EXPRESSION** in the bottom-bar menu (**Ctrl+Shift+G**) builds a circuit from boolean equations, such as `S = A ^ B ^ CIN; COUT = A*B + CIN*(A ^ B)`. It adds one input pin per variable (sorted alphabetically, A at the top), one output pin per equation (in the order written), the gate chips and their wires, and lays them out like Organize All. A preview shows the inputs, outputs and gate count before you generate, and a typing error is marked with `^` under the place it was found. If the open chip isn't empty, the circuit goes into a new chip (after the usual unsaved-changes prompt). One undo step removes everything that was generated.
+**EXPRESSION** in the bottom-bar menu (**Ctrl+Shift+G**) builds a circuit from boolean equations, such as `S = A ^ B ^ CIN; COUT = A*B + CIN*(A ^ B)`. It adds one input pin per variable (sorted alphabetically, A at the top), one output pin per equation (in the order written), the gate chips and their wires, and lays them out like Organize All. A preview shows the inputs, outputs and gate count before you generate, and a typing error is marked with `^` under the place it was found. If the open chip isn't empty, the circuit goes into a new chip (after the usual unsaved-changes prompt). One undo step removes everything that was generated.
 
 | Syntax | Meaning |
 |---|---|
@@ -75,9 +75,9 @@ Hover any wire or pin to see its current value in binary, decimal, signed and he
 | `;` or a new line | separates equations |
 | `Name = expr` | names the output; a bare `expr` is named `Y`, then `Y2`, `Y3`, … |
 
-Precedence is NOT, then AND, then XOR, then OR, so `A + B*C ^ D` means `A + ((B*C) ^ D)`. There is no implicit AND: `AB` is a single variable named `AB`, so write `A*B`. Variable names are letters, digits and `_` (not starting with a digit) and ignore case. An output can't have the same name as an input. Limits: 16 inputs, 8 outputs and 300 gates.
+Precedence is NOT, then AND, then XOR, then OR, so `A + B*C ^ D` means `A + ((B*C) ^ D)`. There is no implicit AND: `AB` is a single variable named `AB`, so write `A*B`. Names are letters, digits and `_` (not starting with a digit, at most 16 characters, like pin names) and ignore case. An output can't have the same name as an input. Limits: 16 inputs, 8 outputs and 300 gates.
 
-**Gates:** with **Use my gates** (the default), library chips named exactly `NOT`, `AND`, `OR` and `XOR` are used when they have the right pins (1 or 2 one-bit inputs, one 1-bit output) and their truth table is correct. Any gate that is missing or fails this check is built from `NAND` chips. **NAND only** builds everything from `NAND`. Identical sub-expressions share one gate.
+**Gates:** with **Use my gates** (the default), library chips named `NOT`, `AND`, `OR` or `XOR` (any case) are used when they have the right pins (1 or 2 one-bit inputs, one 1-bit output) and their truth table is correct. Any gate that is missing or fails this check is built from `NAND` chips. **NAND only** builds everything from `NAND`. Identical sub-expressions share one gate.
 
 ## New chips and pins (merged from upstream pull requests)
 - **16-bit pins and chips** ([#571](https://github.com/SebLague/Digital-Logic-Sim/pull/571)): 16-bit input and output pins, plus 16-bit split and merge chips (16→8, 16→1, 8→16, 1→16).
