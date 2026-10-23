@@ -2,6 +2,7 @@ using System;
 using DLS.Description;
 using DLS.Game;
 using DLS.Game.Layout;
+using DLS.SaveSystem;
 using Seb.Helpers;
 using Seb.Types;
 using Seb.Vis;
@@ -26,6 +27,7 @@ namespace DLS.Graphics
 			$"FIND CHIP    {shortcutTextCol}Ctrl+F",
 			$"TIDY WIRES   {shortcutTextCol}Ctrl+T",
 			$"ORGANIZE ALL {shortcutTextCol}Ctrl+Shift+T",
+			"STATISTICS",
 			$"LIBRARY      {shortcutTextCol}Ctrl+L",
 			$"PREFS        {shortcutTextCol}Ctrl+P",
 			$"QUIT         {shortcutTextCol}Ctrl+Q"
@@ -36,9 +38,10 @@ namespace DLS.Graphics
 		const int FindChipButtonIndex = 2;
 		const int TidyWiresButtonIndex = 3;
 		const int OrganizeAllButtonIndex = 4;
-		const int LibraryButtonIndex = 5;
-		const int OptionsButtonIndex = 6;
-		const int QuitButtonIndex = 7;
+		const int StatisticsButtonIndex = 5;
+		const int LibraryButtonIndex = 6;
+		const int OptionsButtonIndex = 7;
+		const int QuitButtonIndex = 8;
 
 		// ---- State ----
 		static float scrollX;
@@ -123,6 +126,7 @@ namespace DLS.Graphics
 				else if (i == FindChipButtonIndex) OpenSearchMenu();
 				else if (i == TidyWiresButtonIndex) ChipOrganizer.TidyWires(Project.ActiveProject.ViewedChip);
 				else if (i == OrganizeAllButtonIndex) ChipOrganizer.OrganizeAll(Project.ActiveProject.ViewedChip);
+				else if (i == StatisticsButtonIndex) OpenStatsMenu();
 				else if (i == LibraryButtonIndex) OpenLibraryMenu();
 				else if (i == OptionsButtonIndex) OpenPreferencesMenu();
 				else if (i == QuitButtonIndex) ExitToMainMenu();
@@ -400,6 +404,7 @@ namespace DLS.Graphics
 
 		static void OpenSaveMenu() => UIDrawer.SetActiveMenu(UIDrawer.MenuType.ChipSave);
 		static void OpenSearchMenu() => UIDrawer.SetActiveMenu(UIDrawer.MenuType.Search);
+		static void OpenStatsMenu() => ChipStatsMenu.Open(DescriptionCreator.CreateChipDescription(Project.ActiveProject.ViewedChip));
 		static void OpenLibraryMenu() => UIDrawer.SetActiveMenu(UIDrawer.MenuType.ChipLibrary);
 		static void OpenPreferencesMenu() => UIDrawer.SetActiveMenu(UIDrawer.MenuType.Preferences);
 

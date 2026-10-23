@@ -38,10 +38,13 @@ namespace DLS.Graphics
 		static readonly MenuEntry replaceAllChipsEntry = new(Format("REPLACE ALL..."), OpenReplaceAllMenu, CanReplaceChip);
 		static readonly MenuEntry selectSameEntry = new(Format("SELECT SAME"), SelectSameType, CanEditCurrentChip);
 
+		static readonly MenuEntry statsEntry = new(Format("STATISTICS"), OpenStatsMenu, () => interactionContext is SubChipInstance);
+
 		static readonly MenuEntry[] entries_customSubchip =
 		{
 			new(Format("VIEW"), EnterViewMode, CanEnterViewMode),
 			openChipEntry,
+			statsEntry,
 			labelChipEntry,
 			dividerMenuEntry,
 			replaceChipEntry,
@@ -53,6 +56,7 @@ namespace DLS.Graphics
 
 		static readonly MenuEntry[] entries_builtinSubchip =
 		{
+			statsEntry,
 			labelChipEntry,
 			dividerMenuEntry,
 			replaceChipEntry,
@@ -323,6 +327,8 @@ namespace DLS.Graphics
 			BatchRenameMenu.SetTargets(selection, selection[0] is DevPinInstance);
 			UIDrawer.SetActiveMenu(UIDrawer.MenuType.BatchRename);
 		}
+
+		static void OpenStatsMenu() => ChipStatsMenu.Open(((SubChipInstance)interactionContext).Description);
 
 		static bool CanReplaceChip() => interactionContext is SubChipInstance subChip && SubChipReplacer.CanReplace(subChip);
 
