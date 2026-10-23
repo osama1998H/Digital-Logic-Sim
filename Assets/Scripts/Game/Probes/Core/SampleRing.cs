@@ -40,7 +40,7 @@ namespace DLS.Game.Probes
 				if (clearRequested) return -1;
 				long count = Volatile.Read(ref writeCount);
 				if (count <= Volatile.Read(ref clearBase)) return -1;
-				// Slot of the newest published sample is never the one being written
+				// Best-effort; may be momentarily stale
 				return steps[(int)((count - 1) % Capacity)];
 			}
 		}
@@ -54,6 +54,9 @@ namespace DLS.Game.Probes
 				Volatile.Write(ref clearBase, count);
 				clearRequested = false;
 			}
+
+			// Store-store fence: the previous publish must be visible before this slot's stores
+			Interlocked.MemoryBarrier();
 
 			int slot = (int)(count % Capacity);
 			steps[slot] = step;
@@ -100,9 +103,9 @@ namespace DLS.Game.Probes
 			long firstSafe = countAfter - Capacity + 1;
 			long baseAfter = Volatile.Read(ref clearBase);
 			long keepFrom = Math.Max(start, Math.Max(firstSafe, baseAfter));
+			if (keepFrom >= start + n) return 0;
 			int drop = (int)(keepFrom - start);
 			if (drop <= 0) return n;
-			if (drop >= n) return 0;
 
 			int kept = n - drop;
 			for (int i = 0; i < kept; i++)

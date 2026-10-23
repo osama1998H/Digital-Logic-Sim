@@ -66,7 +66,6 @@ namespace LayoutTests
 		public void Ring_ReaderNeverSeesHalfWrittenSlot()
 		{
 			SampleRing ring = new(2, 128);
-			long deadline = Environment.TickCount64 + 200;
 			bool stop = false;
 			Thread writer = new(() =>
 			{
@@ -80,12 +79,15 @@ namespace LayoutTests
 				}
 			});
 			writer.Start();
+			long start = Environment.TickCount64;
+			long deadline = start + 200;
+			long hardCap = start + 5000;
 
 			long[] steps = new long[64];
 			uint[][] vals = MakeOut(64, 2);
 			long reads = 0, samples = 0;
 			string failure = null;
-			while (Environment.TickCount64 < deadline && failure == null)
+			while (failure == null && (Environment.TickCount64 < deadline || samples < 10000) && Environment.TickCount64 < hardCap)
 			{
 				int n = ring.CopyLatest(64, steps, vals);
 				reads++;
@@ -102,6 +104,7 @@ namespace LayoutTests
 
 			Assert.That(failure, Is.Null);
 			Assert.That(reads, Is.GreaterThan(0));
+			Assert.That(samples, Is.GreaterThan(0));
 		}
 
 		[Test]
@@ -142,6 +145,7 @@ namespace LayoutTests
 			uint[][] vals = MakeOut(64, 1);
 			// Pending clear reads as empty before the writer acts on it.
 			Assert.That(ring.CopyLatest(64, steps, vals), Is.EqualTo(0));
+			Assert.That(ring.LatestStep, Is.EqualTo(-1));
 
 			ring.Write(100, new uint[] { 9 });
 			int n = ring.CopyLatest(64, steps, vals);
