@@ -16,8 +16,8 @@ namespace DLS.Graphics
 		public static void Draw(Project project)
 		{
 			if (project == null || project.description.Prefs_HideValueTooltips != 0) return;
-			if (UIDrawer.InInputBlockingMenu() || ContextMenu.IsOpen || InteractionState.MouseIsOverUI) return;
-			if (project.controller == null || project.controller.IsPlacingOrMovingElementOrCreatingWire) return;
+			if (UIDrawer.InInputBlockingMenu() || UIDrawer.ActiveMenu == UIDrawer.MenuType.ChipCustomization || ContextMenu.IsOpen || InteractionState.MouseIsOverUI) return;
+			if (project.controller == null || project.controller.IsPlacingOrMovingElementOrCreatingWire || project.controller.IsCreatingSelectionBox) return;
 
 			IInteractable element = InteractionState.ElementUnderMouse;
 			if (element is not (PinInstance or WireInstance)) return;

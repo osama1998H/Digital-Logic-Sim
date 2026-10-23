@@ -20,7 +20,7 @@ namespace DLS.Game.Inspect
 			{
 				PinInstance source = wire.SourcePin;
 				if (source == null) return false;
-				Fill(source, source.Name, chipEditable, out name, out state, out bitCount);
+				Fill(source, "wire: " + source.Name, chipEditable, out name, out state, out bitCount);
 				return true;
 			}
 
