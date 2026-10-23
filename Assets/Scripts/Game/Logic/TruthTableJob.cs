@@ -27,8 +27,26 @@ namespace DLS.Game.Logic
 				return;
 			}
 
-			SimChip root = Simulator.BuildSimChip(chip, library);
-			if (!root.IsCombinational())
+			SimChip root;
+			try
+			{
+				string missing = FindMissingSubChip(chip, library, 0);
+				if (missing != null)
+				{
+					cannotRunReason = $"Subchip '{missing}' is missing from the library";
+					return;
+				}
+
+				root = Simulator.BuildSimChip(chip, library);
+				if (!root.IsCombinational()) root = null;
+			}
+			catch (System.Exception e)
+			{
+				cannotRunReason = "Can't evaluate this chip: " + e.Message;
+				return;
+			}
+
+			if (root == null)
 			{
 				cannotRunReason = "This chip has memory, a clock or feedback; use the Test Bench";
 				return;
@@ -61,6 +79,19 @@ namespace DLS.Game.Logic
 
 			Progress = (float)nextRow / Table.RowCount;
 			return nextRow >= Table.RowCount;
+		}
+
+		static string FindMissingSubChip(ChipDescription chip, ChipLibrary library, int depth)
+		{
+			if (depth > 64) return null;
+			foreach (SubChipDescription sub in chip.SubChips)
+			{
+				if (!library.TryGetChipDescription(sub.Name, out ChipDescription subDesc)) return sub.Name;
+				string missing = FindMissingSubChip(subDesc, library, depth + 1);
+				if (missing != null) return missing;
+			}
+
+			return null;
 		}
 
 		static TruthPin[] ToTruthPins(PinDescription[] pins)

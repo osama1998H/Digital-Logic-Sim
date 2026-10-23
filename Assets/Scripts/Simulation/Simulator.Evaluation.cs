@@ -91,7 +91,9 @@ namespace DLS.Simulation
 				bypassCaches = true;
 
 				root.ResetReceivedFlagsOnAllPins();
-				if (firstStep) StepChipReorder(root);
+				// A built-in root has no subchips, so it must be processed directly
+				if (root.IsBuiltin) ProcessBuiltinChip(root);
+				else if (firstStep) StepChipReorder(root);
 				else StepChip(root);
 			}
 			finally

@@ -265,6 +265,8 @@ namespace DLS.Graphics
 			string[] pinNames = new string[inputCount];
 			for (int i = 0; i < inputCount; i++) pinNames[i] = table.Inputs[i].Name;
 			string[] names = SopFormatter.MakeVariableNames(pinNames);
+			// An input sharing a name with an output would make the expression read as recursive
+			if (SameNames(names, pinNames) && AnyInputNamedLikeOutput(pinNames)) names = SopFormatter.MakeVariableNames(new string[inputCount]);
 
 			StringBuilder sb = new();
 			foreach (int o in outputs)
@@ -287,13 +289,26 @@ namespace DLS.Graphics
 				for (int i = 0; i < inputCount; i++)
 				{
 					if (i > 0) sb.Append(", ");
-					sb.Append(names[i]).Append(" = ").Append(Ordinal(i)).Append(" input");
+					sb.Append(names[i]).Append(" = ").Append(Ordinal(i)).Append(" input (").Append(pinNames[i]).Append(')');
 				}
 
 				sb.Append('\n');
 			}
 
 			expressionText = sb.ToString().TrimEnd('\n');
+		}
+
+		static bool AnyInputNamedLikeOutput(string[] inputNames)
+		{
+			foreach (string n in inputNames)
+			{
+				foreach (TruthPin o in table.Outputs)
+				{
+					if (string.Equals(n, o.Name, StringComparison.OrdinalIgnoreCase)) return true;
+				}
+			}
+
+			return false;
 		}
 
 		static bool SameNames(string[] a, string[] b)
