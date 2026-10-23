@@ -24,7 +24,8 @@ namespace DLS.Graphics
 			ChipLabelPopup,
 			BatchRename,
 			ReplaceChip,
-			ChipStats
+			ChipStats,
+			TruthTable
 		}
 
 		static MenuType activeMenuOld;
@@ -77,6 +78,7 @@ namespace DLS.Graphics
 			else if (menuToDraw == MenuType.BatchRename) BatchRenameMenu.DrawMenu();
 			else if (menuToDraw == MenuType.ReplaceChip) ReplaceChipPopup.DrawMenu();
 			else if (menuToDraw == MenuType.ChipStats) ChipStatsMenu.DrawMenu();
+			else if (menuToDraw == MenuType.TruthTable) TruthTableMenu.DrawMenu();
 			else
 			{
 				bool showSimPausedBanner = project.simPaused;
@@ -99,6 +101,7 @@ namespace DLS.Graphics
 			if (ActiveMenu != activeMenuOld)
 			{
 				if (activeMenuOld == MenuType.ChipCustomization) CustomizationSceneDrawer.OnCustomizationMenuClosed();
+				if (activeMenuOld == MenuType.TruthTable) TruthTableMenu.OnMenuClosed();
 
 				if (ActiveMenu == MenuType.ChipSave) ChipSaveMenu.OnMenuOpened();
 				else if (ActiveMenu == MenuType.ChipLibrary) ChipLibraryMenu.OnMenuOpened();
@@ -114,6 +117,7 @@ namespace DLS.Graphics
 				else if (ActiveMenu == MenuType.BatchRename) BatchRenameMenu.OnMenuOpened();
 				else if (ActiveMenu == MenuType.ReplaceChip) ReplaceChipPopup.OnMenuOpened();
 				else if (ActiveMenu == MenuType.ChipStats) ChipStatsMenu.OnMenuOpened();
+				else if (ActiveMenu == MenuType.TruthTable) TruthTableMenu.OnMenuOpened();
 
 				if (InInputBlockingMenu() && Project.ActiveProject != null && Project.ActiveProject.controller != null)
 				{
@@ -136,6 +140,7 @@ namespace DLS.Graphics
 
 		public static void Reset()
 		{
+			TruthTableMenu.OnMenuClosed();
 			SetActiveMenu(MenuType.None);
 			activeMenuOld = MenuType.None;
 			ContextMenu.Reset();

@@ -24,6 +24,7 @@ namespace DLS.SaveSystem
 		public static string GetDeletedProjectPath(string projectName) => Path.Combine(DeletedProjectsPath, projectName);
 		public static string GetChipsPath(string projectName) => Path.Combine(GetProjectPath(projectName), "Chips");
 		public static string GetDeletedChipsPath(string projectName) => Path.Combine(GetProjectPath(projectName), "Deleted Chips");
+		public static string GetExportsPath(string projectName) => Path.Combine(GetProjectPath(projectName), "Exports");
 		public static string GetProjectDescriptionPath(string projectName) => Path.Combine(GetProjectPath(projectName), ProjectFileName);
 	}
 }

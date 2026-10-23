@@ -95,12 +95,12 @@ namespace DLS.Game
 			return LoadProject(projectName);
 		}
 
-		public static void OpenSaveDataFolderInFileBrowser()
+		public static void OpenSaveDataFolderInFileBrowser() => OpenFolderInFileBrowser(SavePaths.AllData);
+
+		public static void OpenFolderInFileBrowser(string path)
 		{
 			try
 			{
-				string path = SavePaths.AllData;
-
 				if (!Directory.Exists(path)) throw new Exception("Path does not not exist: " + path);
 
 				path = path.Replace("\\", "/");

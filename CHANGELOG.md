@@ -52,6 +52,9 @@ Split and merge chip pins are named by bit number (`IN 7` … `IN 0`, `OUT 7-4`,
 ### Chip statistics
 Total NAND gates across all levels, longest path in gate delays, and a breakdown of chips used. Right-click a chip and choose **Statistics**, or use **STATISTICS** in the bottom-bar menu for the chip you're editing.
 
+### Truth table
+Right-click a chip and choose **Truth Table**, or press **Ctrl+Shift+Y** for the chip you're editing. Copy or save the table as CSV, and get a simplified expression for 1-bit outputs.
+
 ### Value tooltips
 Hover any wire or pin to see its current value in binary, decimal, signed and hex. Turn it off with **Value tooltips** in Preferences.
 
