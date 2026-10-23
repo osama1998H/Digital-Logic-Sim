@@ -26,7 +26,7 @@ namespace DLS.Game.Layout
 		static OrganizeReport Organize(DevChipInstance chip, bool placeElements)
 		{
 			Project project = Project.ActiveProject;
-			if (project == null || !project.CanEditViewedChip) return default;
+			if (project == null || !project.CanEditViewedChip || chip != project.ViewedChip) return default;
 
 			project.controller.CancelEverything();
 

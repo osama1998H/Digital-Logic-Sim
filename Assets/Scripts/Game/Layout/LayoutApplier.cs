@@ -71,8 +71,8 @@ namespace DLS.Game.Layout
 			bool parentFound = newIndexByKey.TryGetValue(original.ConnectedWireIndex, out int parentIndex) && parentIndex < newIndex;
 			bool parentRouted = parentFound && result.Connections[parentIndex].Routed;
 
-			// Source-attached wires only keep their attachment to a rerouted parent; bus writers also keep it to an unrouted trunk
-			if (!parentFound || (attachedAtSource && !parentRouted))
+			// Keep the attachment whenever the parent precedes this wire; an unrouted parent keeps its shape, so the original segment stays valid
+			if (!parentFound)
 			{
 				desc.ConnectionType = WireConnectionType.ToPins;
 				desc.ConnectedWireIndex = -1;
