@@ -12,6 +12,7 @@ namespace DLS.Game.Layout
 		readonly LayoutRect[] expandedObstacles;
 		readonly bool[] obstacleBlocked;
 		readonly int[] reservedPinKey;
+		readonly Dictionary<int, int> netOfPin = new(); // pin key -> lowest pin key of its net (pins joined by non-writer connections)
 		readonly float gridSize;
 
 		public int Width => Xs.Length;
@@ -103,8 +104,10 @@ namespace DLS.Game.Layout
 			}
 
 			RoutingLattice lattice = new(xs, uniqueYs.ToArray(), problem, settings);
+			lattice.BuildNets(problem);
 
-			// Sorted so shared escape nodes always go to the lowest pin key
+			// Sorted so a contested escape node always goes to the lowest pin key; EscapeNode then refuses it to later
+			// pins of other nets
 			List<int> keys = new(problem.Pins.Keys);
 			keys.Sort();
 			foreach (int key in keys)
@@ -116,6 +119,45 @@ namespace DLS.Game.Layout
 			}
 
 			return lattice;
+		}
+
+		// Union-find over source/target pins of non-writer connections (a writer never reaches its target pin)
+		void BuildNets(LayoutProblem problem)
+		{
+			Dictionary<int, int> parent = new();
+
+			int Find(int key)
+			{
+				if (!parent.TryGetValue(key, out int p))
+				{
+					parent[key] = key;
+					return key;
+				}
+
+				if (p == key) return key;
+				int root = Find(p);
+				parent[key] = root;
+				return root;
+			}
+
+			foreach (LayoutConnection c in problem.Connections)
+			{
+				if (c.TargetAttachToKey >= 0) continue;
+				int a = Find(c.SourcePinKey), b = Find(c.TargetPinKey);
+				// The lower key becomes the root, so each net is named by its lowest pin key whatever the union order
+				if (a < b) parent[b] = a;
+				else if (b < a) parent[a] = b;
+			}
+
+			List<int> keys = new(parent.Keys);
+			keys.Sort();
+			foreach (int key in keys) netOfPin[key] = Find(key);
+		}
+
+		bool SameNet(int pinKeyA, int pinKeyB)
+		{
+			if (pinKeyA == pinKeyB) return true;
+			return netOfPin.TryGetValue(pinKeyA, out int a) && netOfPin.TryGetValue(pinKeyB, out int b) && a == b;
 		}
 
 		public bool IsBlocked(int ix, int iy)
@@ -130,6 +172,9 @@ namespace DLS.Game.Layout
 
 		public int IndexOfY(float y) => IndexOf(Ys, y);
 
+		// First free node at least a cell out from the pin along its exit direction. (-1, -1) means the pin has no stub (its
+		// connections stay unrouted): the scan meets an obstacle of another owner first, or the node is the escape node of
+		// a lower-keyed pin of another net.
 		public (int ix, int iy) EscapeNode(LayoutPin pin)
 		{
 			int iy = IndexOfY(pin.Position.Y);
@@ -139,11 +184,33 @@ namespace DLS.Game.Layout
 			int start = dir > 0 ? FirstIndexAbove(Xs, pin.Position.X - Eps) : FirstIndexAbove(Xs, pin.Position.X + Eps) - 1;
 			for (int ix = start; ix >= 0 && ix < Width; ix += dir)
 			{
+				int i = iy * Width + ix;
+				if (obstacleBlocked[i])
+				{
+					// Nodes nearer than a cell are never escape nodes, but the stub still crosses them
+					if (CoveredByOtherOwner(ix, iy, pin.OwnerID)) return (-1, -1);
+					continue;
+				}
+
 				if ((Xs[ix] - pin.Position.X) * dir < gridSize - Eps) continue;
-				if (!obstacleBlocked[iy * Width + ix]) return (ix, iy);
+				int reserved = reservedPinKey[i];
+				return reserved == -1 || SameNet(reserved, pin.Key) ? (ix, iy) : (-1, -1);
 			}
 
 			return (-1, -1);
+		}
+
+		// Same containment rule as the obstacle rasterization in the constructor
+		bool CoveredByOtherOwner(int ix, int iy, int ownerID)
+		{
+			float x = Xs[ix], y = Ys[iy];
+			foreach (LayoutRect r in expandedObstacles)
+			{
+				if (r.OwnerID == ownerID) continue;
+				if (x >= r.MinX + Eps && x < r.MaxX - Eps && y >= r.MinY + Eps && y < r.MaxY - Eps) return true;
+			}
+
+			return false;
 		}
 
 		public LayoutPoint Point(int ix, int iy) => new(Xs[ix], Ys[iy]);

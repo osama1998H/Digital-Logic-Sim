@@ -133,7 +133,27 @@ namespace LayoutTests
 		}
 
 		[Test]
-		public void EscapeNode_SharedNodeReservedForLowerKey()
+		public void EscapeNode_SharedNodeSameNet_ReservedForLowerKey()
+		{
+			LayoutProblem problem = new();
+			problem.Obstacles.Add(new LayoutRect(1, 0, 0, 1, 1));
+			LayoutPin a = MakePin(9, 1, 1f, 0.5f, 1);
+			LayoutPin b = MakePin(3, 1, 1f, 0.5f, 1);
+			problem.Pins[9] = a;
+			problem.Pins[3] = b;
+			problem.Connections.Add(new LayoutConnection { Key = 0, SourcePinKey = 9, TargetPinKey = 3, BitCount = 1 });
+			RoutingLattice lattice = RoutingLattice.Build(problem, new RouterSettings());
+
+			var ea = lattice.EscapeNode(a);
+			var eb = lattice.EscapeNode(b);
+
+			Assert.That(ea.ix, Is.GreaterThanOrEqualTo(0));
+			Assert.That(ea, Is.EqualTo(eb));
+			Assert.That(lattice.ReservedPinKey(ea.ix, ea.iy), Is.EqualTo(3));
+		}
+
+		[Test]
+		public void EscapeNode_SharedNodeOtherNet_HigherKeyGetsNone()
 		{
 			LayoutProblem problem = new();
 			problem.Obstacles.Add(new LayoutRect(1, 0, 0, 1, 1));
@@ -143,11 +163,11 @@ namespace LayoutTests
 			problem.Pins[3] = b;
 			RoutingLattice lattice = RoutingLattice.Build(problem, new RouterSettings());
 
-			var ea = lattice.EscapeNode(a);
 			var eb = lattice.EscapeNode(b);
 
-			Assert.That(ea, Is.EqualTo(eb));
-			Assert.That(lattice.ReservedPinKey(ea.ix, ea.iy), Is.EqualTo(3));
+			Assert.That(eb.ix, Is.GreaterThanOrEqualTo(0));
+			Assert.That(lattice.ReservedPinKey(eb.ix, eb.iy), Is.EqualTo(3));
+			Assert.That(lattice.EscapeNode(a), Is.EqualTo((-1, -1)));
 		}
 	}
 }
