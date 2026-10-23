@@ -67,4 +67,5 @@ Split and merge chip pins are named by bit number (`IN 7` … `IN 0`, `OUT 7-4`,
   `Unity -batchmode -quit -projectPath . -executeMethod MacBuild.Build`
   The build is written to `Builds/macOS/Digital-Logic-Sim.app`.
 - Unit tests for the layout and editing code, which doesn't depend on Unity: `dotnet test Tools/LayoutTests`.
+- Helper scripts in `Tools/`: `verify-compile.sh` (compile-check the game code with dotnet), `make-metas.sh` (create missing Unity `.meta` files) and `install-app.sh` (build the macOS app and install it to `/Applications`, keeping one backup).
 - Design and implementation notes are in `docs/superpowers/plans/`.
