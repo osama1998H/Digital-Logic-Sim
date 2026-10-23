@@ -988,7 +988,9 @@ namespace DLS.Game
 		{
 			NoteDescription noteDesc = new(IDGenerator.GenerateNewElementID(ActiveDevChip), Vector2.zero, string.Empty, NoteColour.Yellow);
 			NoteInstance note = new(noteDesc);
-			StartPlacing(note, InputHelper.MousePosWorld, false);
+			// Centre the note on the cursor (position is the top-left corner)
+			Vector2 size = note.Size;
+			StartPlacing(note, InputHelper.MousePosWorld + new Vector2(-size.x / 2, size.y / 2), false);
 			return note;
 		}
 

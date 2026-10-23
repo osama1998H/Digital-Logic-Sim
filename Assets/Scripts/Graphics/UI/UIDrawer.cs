@@ -62,8 +62,9 @@ namespace DLS.Graphics
 
 		static void DrawProjectMenus(Project project)
 		{
-			NoteEditMenu.UpdatePendingPlacement(project);
 			MenuType menuToDraw = ActiveMenu; // cache state in case it changes while drawing/updating the menus
+			// After caching, so the editor first draws on the frame after it opens (the placing click must not reach its buttons)
+			NoteEditMenu.UpdatePendingPlacement(project);
 
 			// Docked (not a MenuType, so the canvas above it stays usable); drawn before the bottom bar so its popups overlay it
 			if (TimingDiagramPanel.IsOpen && (menuToDraw is MenuType.None or MenuType.BottomBarMenuPopup)) TimingDiagramPanel.Draw(project);

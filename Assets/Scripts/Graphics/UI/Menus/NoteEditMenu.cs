@@ -38,7 +38,7 @@ namespace DLS.Graphics
 		// Starts placing a new note at the cursor. The editor opens once the note has been placed.
 		public static void BeginPlacingNewNote(Project project)
 		{
-			if (!project.CanEditViewedChip) return;
+			if (!project.CanEditViewedChip || project.controller.IsPlacingElementOrCreatingWire) return;
 			pendingPlacedNote = project.controller.StartPlacingNote();
 		}
 
@@ -151,15 +151,34 @@ namespace DLS.Graphics
 			string clipboard = InputHelper.GetClipboardContents();
 			if (string.IsNullOrEmpty(clipboard)) return;
 			clipboard = clipboard.Replace("\r\n", "\n").Replace('\r', '\n');
-			if (clipboard.IndexOf('\n') < 0) return; // single line: handled by the field itself
+			clipboard = clipboard.Replace('\t', ' ');
+
+			if (clipboard.IndexOf('\n') < 0)
+			{
+				// Single line: the field rejects control characters, so insert a cleaned copy (only needed when it contained any)
+				string cleaned = StripControlChars(clipboard);
+				if (cleaned != InputHelper.GetClipboardContents()) UI.GetInputFieldState(IDS_line[startRow]).TryInsertText(cleaned, lineValidator);
+				return;
+			}
 
 			string[] pasted = clipboard.Split('\n');
 			for (int i = 0; i < pasted.Length && startRow + i < IDS_line.Length; i++)
 			{
-				string line = pasted[i].Replace('\t', ' ');
+				string line = StripControlChars(pasted[i]);
 				if (line.Length > NoteText.MaxLineLength) line = line.Substring(0, NoteText.MaxLineLength);
 				UI.GetInputFieldState(IDS_line[startRow + i]).SetText(line, i == 0);
 			}
+		}
+
+		static string StripControlChars(string text)
+		{
+			System.Text.StringBuilder sb = new(text.Length);
+			foreach (char c in text)
+			{
+				if (!char.IsControl(c)) sb.Append(c);
+			}
+
+			return sb.ToString();
 		}
 
 		static string CollectText()
@@ -182,7 +201,7 @@ namespace DLS.Graphics
 
 				if (text.Length == 0)
 				{
-					chip.DeleteNote(note);
+					DeleteNewNote(chip, removedStep);
 				}
 				else
 				{
@@ -211,13 +230,19 @@ namespace DLS.Graphics
 			Close();
 		}
 
+		// If the add step couldn't be dropped, record the deletion so that undo history stays consistent
+		static void DeleteNewNote(DevChipInstance chip, bool addStepRemoved)
+		{
+			if (!addStepRemoved) chip.UndoController.RecordDeleteElements(new List<IMoveable> { note });
+			chip.DeleteNote(note);
+		}
+
 		static void Cancel()
 		{
 			if (isNewNote)
 			{
 				DevChipInstance chip = Project.ActiveProject.ViewedChip;
-				chip.UndoController.TryRemoveLastAddedNote(note.ID);
-				chip.DeleteNote(note);
+				DeleteNewNote(chip, chip.UndoController.TryRemoveLastAddedNote(note.ID));
 			}
 
 			Close();
