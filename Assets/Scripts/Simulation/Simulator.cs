@@ -19,10 +19,16 @@ namespace DLS.Simulation
 		// Small, purely combinational chips use a LUT for fast calculations. These are stored here. Maps the name of a chip to its LUT.
 		public static readonly Dictionary<string, uint[][]> combinationalChipCaches = new();
 		public static readonly HashSet<string> chipsKnowToNotBeCombinational = new();
-		public static bool useCaching = true;
+		public static volatile bool useCaching = true;
+
+		// Caches are cleared on the sim thread (the cache collections are not thread-safe), so other threads only request it
+		static volatile bool clearCachesRequested;
+
+		// Set from the main thread while a menu is open: no new caches are created, and any in-progress creation is cancelled
+		public static volatile bool cacheCreationSuspended;
 
 		// Variables for the creating cache info popup
-		public static bool isCreatingACache = false;
+		public static volatile bool isCreatingACache = false;
 		public static string nameOfChipWhoseCacheIsBeingCreated;
 		public static float cacheCreatingProgress;
 
@@ -159,7 +165,7 @@ namespace DLS.Simulation
 					bool wasSuccessful = ProcessCachedChip(nextSubChip); // We found a cached chip, so use LUT to process it directly
 					if (!wasSuccessful) StepChip(nextSubChip); // Fallback to normal simulation, if lookup failed
 				}
-				else if (!chipsKnowToNotBeCombinational.Contains(nextSubChip.Name) && useCaching)
+				else if (!chipsKnowToNotBeCombinational.Contains(nextSubChip.Name) && useCaching && !cacheCreationSuspended)
 				{
 					RecalculateCachedLUTs(nextSubChip); // We found a chip that isn't cached but might be cachable, so we try to cache it
 					StepChip(nextSubChip);
@@ -207,6 +213,7 @@ namespace DLS.Simulation
 		// Recalculates the caches of this chip and and all of its subChips.
 		static void RecalculateCachedLUTs(SimChip chip)
 		{
+			if (CacheCreationCancelled) return;
 			// Skip this chip, if its cache status is already known
 			if (combinationalChipCaches.ContainsKey(chip.Name) || chipsKnowToNotBeCombinational.Contains(chip.Name)) return;
 
@@ -217,9 +224,9 @@ namespace DLS.Simulation
 			}
 
 			// Don't cache this chip, if it isn't cachable
-			if (chip.ChipType != ChipType.Custom
-				|| (!chip.shouldBeCached && chip.CalculateNumberOfInputBits() > MAX_NUM_INPUT_BITS_WHEN_AUTO_CACHING)
-				|| !chip.IsCombinational())
+			int numInputBits = chip.CalculateNumberOfInputBits();
+			int maxInputBits = chip.shouldBeCached ? MAX_NUM_INPUT_BITS_WHEN_USER_CACHING : MAX_NUM_INPUT_BITS_WHEN_AUTO_CACHING;
+			if (chip.ChipType != ChipType.Custom || numInputBits > maxInputBits || !chip.IsCombinational())
 			{
 				chipsKnowToNotBeCombinational.Add(chip.Name);
 				return;
@@ -237,7 +244,7 @@ namespace DLS.Simulation
 			}
 
 			// Cache this chip
-			int numberOfPossibleInputs = 1 << chip.CalculateNumberOfInputBits();
+			int numberOfPossibleInputs = 1 << numInputBits;
 			uint[][] LUT = new uint[numberOfPossibleInputs][];
 			for (int input = 0; input < numberOfPossibleInputs; input++)
 			{
@@ -262,9 +269,9 @@ namespace DLS.Simulation
 				LUT[input] = outputs;
 
 				cacheCreatingProgress = (float)input / numberOfPossibleInputs;
-				if (!isCreatingACache) break; // Cancel the caching, if something ordered the caching to be stopped
+				if (CacheCreationCancelled) break; // Cancel the caching, if something ordered the caching to be stopped
 			}
-			if (isCreatingACache) combinationalChipCaches[chip.Name] = LUT;
+			if (!CacheCreationCancelled) combinationalChipCaches[chip.Name] = LUT;
 
 			// Reload buffered Input (also when cancelled, so the chip isn't left in the state of the last tested input)
 			chip.ResetReceivedFlagsOnAllPins(); // Make sure the chip only recieves our new input
@@ -277,6 +284,10 @@ namespace DLS.Simulation
 			isCreatingACache = false;
 		}
 		
+		static bool CacheCreationCancelled => cacheCreationSuspended || !useCaching;
+
+		public static void RequestClearCaches() => clearCachesRequested = true;
+
 		static int ChooseNextSubChip(SimChip[] subChips, int num)
 		{
 			bool noSubChipsReady = true;
@@ -813,38 +824,59 @@ namespace DLS.Simulation
 		// Note: this should only be called from the sim thread
 		public static void ApplyModifications()
 		{
+			if (clearCachesRequested)
+			{
+				clearCachesRequested = false;
+				combinationalChipCaches.Clear();
+				chipsKnowToNotBeCombinational.Clear();
+				needsOrderPass = true;
+			}
+
 			while (modificationQueue.Count > 0)
 			{
 				needsOrderPass = true;
 
 				if (modificationQueue.TryDequeue(out SimModifyCommand cmd))
 				{
-					if (cmd.type == SimModifyCommand.ModificationType.AddSubchip)
+					try
 					{
-						SimChip newSubChip = BuildSimChip(cmd.chipDesc, cmd.lib, cmd.subChipID, cmd.subChipInternalData);
-						cmd.modifyTarget.AddSubChip(newSubChip);
+						ApplyModification(cmd);
 					}
-					else if (cmd.type == SimModifyCommand.ModificationType.RemoveSubChip)
+					catch (Exception e)
 					{
-						cmd.modifyTarget.RemoveSubChip(cmd.removeSubChipID);
-					}
-					else if (cmd.type == SimModifyCommand.ModificationType.AddConnection)
-					{
-						cmd.modifyTarget.AddConnection(cmd.sourcePinAddress, cmd.targetPinAddress);
-					}
-					else if (cmd.type == SimModifyCommand.ModificationType.RemoveConnection)
-					{
-						cmd.modifyTarget.RemoveConnection(cmd.sourcePinAddress, cmd.targetPinAddress); //
-					}
-					else if (cmd.type == SimModifyCommand.ModificationType.AddPin)
-					{
-						cmd.modifyTarget.AddPin(cmd.simPinToAdd, cmd.pinIsInputPin);
-					}
-					else if (cmd.type == SimModifyCommand.ModificationType.RemovePin)
-					{
-						cmd.modifyTarget.RemovePin(cmd.removePinID);
+						// A single stale command (e.g. sim temporarily out of sync with the editor) shouldn't discard the rest of the queue
+						UnityEngine.Debug.LogWarning($"Failed to apply sim modification {cmd.type}: {e.Message}");
 					}
 				}
+			}
+		}
+
+		static void ApplyModification(SimModifyCommand cmd)
+		{
+			if (cmd.type == SimModifyCommand.ModificationType.AddSubchip)
+			{
+				SimChip newSubChip = BuildSimChip(cmd.chipDesc, cmd.lib, cmd.subChipID, cmd.subChipInternalData);
+				cmd.modifyTarget.AddSubChip(newSubChip);
+			}
+			else if (cmd.type == SimModifyCommand.ModificationType.RemoveSubChip)
+			{
+				cmd.modifyTarget.RemoveSubChip(cmd.removeSubChipID);
+			}
+			else if (cmd.type == SimModifyCommand.ModificationType.AddConnection)
+			{
+				cmd.modifyTarget.AddConnection(cmd.sourcePinAddress, cmd.targetPinAddress);
+			}
+			else if (cmd.type == SimModifyCommand.ModificationType.RemoveConnection)
+			{
+				cmd.modifyTarget.RemoveConnection(cmd.sourcePinAddress, cmd.targetPinAddress);
+			}
+			else if (cmd.type == SimModifyCommand.ModificationType.AddPin)
+			{
+				cmd.modifyTarget.AddPin(cmd.simPinToAdd, cmd.pinIsInputPin);
+			}
+			else if (cmd.type == SimModifyCommand.ModificationType.RemovePin)
+			{
+				cmd.modifyTarget.RemovePin(cmd.removePinID);
 			}
 		}
 

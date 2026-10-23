@@ -79,7 +79,7 @@ namespace DLS.Graphics
 				aMenuIsOpen = false;
 			}
 
-			if (aMenuIsOpen) Simulator.isCreatingACache = false; // Cancel current caching process when a menu gets opened
+			Simulator.cacheCreationSuspended = aMenuIsOpen; // Cancel current caching process (and don't start new ones) while a menu is open
 
 			ContextMenu.Update();
 		}

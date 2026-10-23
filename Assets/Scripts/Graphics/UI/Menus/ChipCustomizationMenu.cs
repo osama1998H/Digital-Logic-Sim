@@ -89,6 +89,7 @@ namespace DLS.Graphics
 				int numberOfInputBits = chip.CalculateNumberOfInputBits();
 				if (numberOfInputBits <= Simulator.MAX_NUM_INPUT_BITS_WHEN_AUTO_CACHING)
 				{
+					ChipSaveMenu.ActiveCustomizeDescription.ShouldBeCached = false; // Cached automatically, so the flag isn't needed
 					UI.DrawText("This chip is being cached.", UIThemeLibrary.DefaultFont, UIThemeLibrary.FontSizeSmall, NextPos(), Anchor.TopLeft, Color.white);
 				}
 				else if (numberOfInputBits <= Simulator.MAX_NUM_INPUT_BITS_WHEN_USER_CACHING)
@@ -105,12 +106,14 @@ namespace DLS.Graphics
 				}
 				else
 				{
+					ChipSaveMenu.ActiveCustomizeDescription.ShouldBeCached = false;
 					UI.DrawText("This chip has too many input", UIThemeLibrary.DefaultFont, UIThemeLibrary.FontSizeSmall, NextPos(), Anchor.TopLeft, Color.white);
 					UI.DrawText("bits to be cached.", UIThemeLibrary.DefaultFont, UIThemeLibrary.FontSizeSmall, NextPos(), Anchor.TopLeft, Color.white);
 				}
 			}
 			else
 			{
+				ChipSaveMenu.ActiveCustomizeDescription.ShouldBeCached = false;
 				UI.DrawText("Non-combinational chips", UIThemeLibrary.DefaultFont, UIThemeLibrary.FontSizeSmall, NextPos(), Anchor.TopLeft, Color.white);
 				UI.DrawText("can not be cached.", UIThemeLibrary.DefaultFont, UIThemeLibrary.FontSizeSmall, NextPos(), Anchor.TopLeft, Color.white);
 			}

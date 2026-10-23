@@ -26,8 +26,7 @@ namespace DLS.SaveSystem
 			ProjectDescription projectDescription = LoadProjectDescription(projectName);
 			ChipLibrary chipLibrary = LoadChipLibrary(projectDescription);
 
-			Simulator.combinationalChipCaches.Clear();
-			Simulator.chipsKnowToNotBeCombinational.Clear();
+			Simulator.RequestClearCaches();
 
 			return new Project(projectDescription, chipLibrary);
 		}

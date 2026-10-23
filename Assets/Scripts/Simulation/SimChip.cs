@@ -391,8 +391,19 @@ namespace DLS.Simulation
 
 		public void RemoveConnection(PinAddress sourcePinAddress, PinAddress targetPinAddress)
 		{
-			SimPin sourcePin = GetSimPinFromAddress(sourcePinAddress);
-			(SimPin removeTargetPin, SimChip targetChip) = GetSimPinFromAddressWithChip(targetPinAddress);
+			SimPin sourcePin;
+			SimPin removeTargetPin;
+			SimChip targetChip;
+			try
+			{
+				sourcePin = GetSimPinFromAddress(sourcePinAddress);
+				(removeTargetPin, targetChip) = GetSimPinFromAddressWithChip(targetPinAddress);
+			}
+			catch (Exception)
+			{
+				// Pin no longer exists (same situation as in AddConnection), so there is no connection to remove
+				return;
+			}
 
 			// Remove first matching connection
 			for (int i = 0; i < sourcePin.ConnectedTargetPins.Length; i++)
