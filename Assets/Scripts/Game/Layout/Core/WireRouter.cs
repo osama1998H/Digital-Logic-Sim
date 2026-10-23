@@ -238,7 +238,7 @@ namespace DLS.Game.Layout
 
 			bool TryGetTrunk(LayoutConnection writer, out LayoutConnection trunk)
 			{
-				return connectionByKey.TryGetValue(writer.TargetAttachToKey, out trunk) && trunk != writer && !IsWriter(trunk);
+				return connectionByKey.TryGetValue(writer.TargetAttachToKey, out trunk) && trunk != writer && trunk.IsBusTrunk && !IsWriter(trunk);
 			}
 
 			// Trunks by key, then other targets nearest-first from the source escape node (ties by key), then writers by key

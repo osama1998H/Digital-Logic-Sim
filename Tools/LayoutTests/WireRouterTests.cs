@@ -336,6 +336,26 @@ namespace LayoutTests
 		}
 
 		[Test]
+		public void Route_WriterReferencingNonTrunk_IsUnrouted()
+		{
+			LayoutProblem problem = new();
+			problem.Pins[1] = MakePin(1, 1, 0, 0, 1);
+			problem.Pins[2] = MakePin(2, 2, 2, 0, -1);
+			problem.Pins[3] = MakePin(3, 3, 0, 1, 1);
+			problem.Pins[4] = MakePin(4, 4, 2, 1, -1);
+			problem.Connections.Add(MakeConnection(0, 1, 2)); // ordinary wire, not IsBusTrunk
+			problem.Connections.Add(new LayoutConnection { Key = 1, SourcePinKey = 3, TargetPinKey = 4, BitCount = 1, TargetAttachToKey = 0 });
+
+			LayoutResult result = WireRouter.Route(problem, new RouterSettings());
+
+			Assert.That(Find(result, 0).Routed, Is.True);
+			RoutedConnection writer = Find(result, 1);
+			Assert.That(writer.Routed, Is.False);
+			Assert.That(writer.Points, Is.Null);
+			Assert.That(result.FailedCount, Is.EqualTo(1));
+		}
+
+		[Test]
 		public void Route_BusTrunkUnroutable_WriterMarkedUnrouted()
 		{
 			LayoutProblem problem = new();
