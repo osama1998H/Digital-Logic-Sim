@@ -212,6 +212,9 @@ namespace DLS.Game
 			LastSavedDescription = savedDescription;
 
 			RegenerateParentChipNamesHash();
+
+			Simulator.combinationalChipCaches.Remove(savedDescription.Name);
+			Simulator.chipsKnowToNotBeCombinational.Remove(savedDescription.Name);
 		}
 
 		public void AddNewSubChip(SubChipInstance subChip, bool isLoading)
@@ -228,7 +231,7 @@ namespace DLS.Game
 			AddElement(pin);
 			if (!isLoadingFromFile)
 			{
-				Simulator.AddPin(SimChip, pin.ID, pin.IsInputPin);
+				Simulator.AddPin(SimChip, pin.ID, pin.IsInputPin, pin.BitCount);
 			}
 		}
 
