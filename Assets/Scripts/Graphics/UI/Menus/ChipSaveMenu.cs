@@ -41,9 +41,13 @@ namespace DLS.Graphics
 
 		public static void OnMenuOpened()
 		{
-			int organizeOnSave = Project.ActiveProject.description.Prefs_OrganizeOnSave;
-			if (organizeOnSave == 1) ChipOrganizer.TidyWires(Project.ActiveProject.ViewedChip);
-			else if (organizeOnSave == 2) ChipOrganizer.OrganizeAll(Project.ActiveProject.ViewedChip);
+			// Only on a fresh open, not when returning from the customization menu
+			if (ActiveCustomizeChip == null)
+			{
+				int organizeOnSave = Project.ActiveProject.description.Prefs_OrganizeOnSave;
+				if (organizeOnSave == 1) ChipOrganizer.TidyWires(Project.ActiveProject.ViewedChip);
+				else if (organizeOnSave == 2) ChipOrganizer.OrganizeAll(Project.ActiveProject.ViewedChip);
+			}
 
 			ActiveCustomizeChip ??= CreateCustomizationState();
 			InitUIFromDescription(ActiveCustomizeChip.Description);
