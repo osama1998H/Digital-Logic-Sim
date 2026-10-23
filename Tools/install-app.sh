@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds the macOS app with Unity in batch mode and installs it to /Applications (keeping one backup).
-UNITY="/Applications/Unity/Hub/Editor/6000.0.85f1/Unity.app/Contents/MacOS/Unity"
+UNITY="${UNITY:-/Applications/Unity/Hub/Editor/6000.0.85f1/Unity.app/Contents/MacOS/Unity}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT" || exit 1
 APP="/Applications/Digital-Logic-Sim.app"
@@ -19,21 +19,44 @@ if [ "$EDITOR_OPEN" = 1 ]; then
 	exit 1
 fi
 
-mkdir -p Builds
-"$UNITY" -batchmode -quit -projectPath "$ROOT" -executeMethod MacBuild.Build -logFile "$LOG"
-grep -E '^MacBuild:' "$LOG" | tail -1
-if ! grep -q '^MacBuild: Succeeded' "$LOG"; then
-	grep -E 'error CS' "$LOG" | sort -u
-	echo "Build failed, see $LOG"
+if [ ! -x "$UNITY" ]; then
+	echo "Unity not found or not executable: $UNITY"
 	exit 1
 fi
 
-if [ -d "$APP" ]; then
-	mkdir -p Builds/previous
-	rm -rf Builds/previous/Digital-Logic-Sim.app
-	mv "$APP" Builds/previous/Digital-Logic-Sim.app
+BUILT="Builds/macOS/Digital-Logic-Sim.app"
+mkdir -p Builds
+# A stale log or app from an earlier run must never be mistaken for this build.
+rm -f "$LOG"
+rm -rf "$BUILT"
+"$UNITY" -batchmode -quit -projectPath "$ROOT" -executeMethod MacBuild.Build -logFile "$LOG"
+UNITY_EXIT=$?
+[ -f "$LOG" ] && grep -E '^MacBuild:' "$LOG" | tail -1
+if [ "$UNITY_EXIT" -ne 0 ] || [ ! -f "$LOG" ] || ! grep -q '^MacBuild: Succeeded' "$LOG" || [ ! -d "$BUILT" ]; then
+	[ -f "$LOG" ] && grep -E 'error CS' "$LOG" | sort -u
+	echo "Build failed (Unity exit code $UNITY_EXIT), see $LOG. /Applications was not touched."
+	exit 1
 fi
-ditto Builds/macOS/Digital-Logic-Sim.app "$APP"
+
+BACKUP="Builds/previous/Digital-Logic-Sim.app"
+if [ -d "$APP" ]; then
+	mkdir -p Builds/previous || exit 1
+	rm -rf "$BACKUP" || { echo "Could not remove old backup; /Applications was not touched."; exit 1; }
+	mv "$APP" "$BACKUP" || { echo "Could not back up the current app; /Applications was not touched."; exit 1; }
+fi
+if ! ditto "$BUILT" "$APP"; then
+	rm -rf "$APP"
+	if [ -d "$BACKUP" ]; then
+		if ditto "$BACKUP" "$APP"; then
+			echo "Install failed; the previous app was restored to $APP"
+		else
+			echo "Install failed; previous app is in $ROOT/$BACKUP"
+		fi
+	else
+		echo "Install failed."
+	fi
+	exit 1
+fi
 echo "Installed $APP"
 if pgrep -f "$APP" >/dev/null; then
 	echo "Quit the app (Cmd+Q) and reopen it to use the new version."
