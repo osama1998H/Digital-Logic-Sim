@@ -1,3 +1,4 @@
+using DLS.Game.Export;
 using DLS.Graphics;
 using DLS.Simulation;
 using Seb.Helpers;
@@ -173,6 +174,7 @@ namespace DLS.Game
 			InteractionState.Reset();
 			CameraController.Reset();
 			WorldDrawer.Reset();
+			ImageExporter.Reset();
 		}
 
 		[System.Serializable]
