@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DLS.Description;
 using DLS.Game;
+using DLS.Game.Export;
 using DLS.Simulation;
 using Seb.Helpers;
 using Seb.Types;
@@ -48,13 +49,13 @@ namespace DLS.Graphics
 
 			if (!controller.IsMovingSelection) DrawAllPinNamesAndChipLabels();
 
-			if (InteractionState.PinUnderMouse != null && controller.HasControl && !controller.IsMovingSelection && !controller.IsCreatingSelectionBox)
+			if (InteractionState.PinUnderMouse != null && controller.HasControl && !controller.IsMovingSelection && !controller.IsCreatingSelectionBox && !ImageExporter.IsCapturing)
 			{
 				DrawPin(InteractionState.PinUnderMouse);
 			}
 
 			// Draw selection box
-			if (controller.IsCreatingSelectionBox)
+			if (controller.IsCreatingSelectionBox && !ImageExporter.IsCapturing)
 			{
 				Draw.Quad(controller.SelectionBoxCentre, controller.SelectionBoxSize, ActiveTheme.SelectionBoxCol);
 			}
@@ -94,8 +95,9 @@ namespace DLS.Graphics
 			Draw.StartLayer(Vector2.zero, 1, false);
 
 			// -- Draw names of all pins (when mode is set to always). Also draw decimal displays for multi-bit pins --
-			bool drawAllDevPinNames = Project.ActiveProject.AlwaysDrawDevPinNames;
-			bool drawAllSubchipPinNames = Project.ActiveProject.AlwaysDrawSubChipPinNames;
+			bool exportAllPinNames = ImageExporter.IsCapturing && ImageExporter.Options.AllPinNames;
+			bool drawAllDevPinNames = Project.ActiveProject.AlwaysDrawDevPinNames || exportAllPinNames;
+			bool drawAllSubchipPinNames = Project.ActiveProject.AlwaysDrawSubChipPinNames || exportAllPinNames;
 
 			foreach (IMoveable element in chip.Elements)
 			{
@@ -119,7 +121,7 @@ namespace DLS.Graphics
 			}
 
 			// -- Draw name of pin under mouse (when mode is set to hover) --
-			if (InteractionState.ElementUnderMouse is PinInstance highlightedPin && controller.CanInteractWithPin)
+			if (InteractionState.ElementUnderMouse is PinInstance highlightedPin && controller.CanInteractWithPin && !ImageExporter.IsCapturing)
 			{
 				bool drawHighlightedPinName = false;
 				drawHighlightedPinName |= highlightedPin.parent is SubChipInstance && Project.ActiveProject.description.Prefs_ChipPinNamesDisplayMode == PreferencesMenu.DisplayMode_OnHover;
@@ -181,7 +183,7 @@ namespace DLS.Graphics
 						DrawSubchipDisplays(subchip, sim);
 					}
 
-					if (element.IsSelected)
+					if (element.IsSelected && !ImageExporter.IsCapturing)
 					{
 						Color boxCol = ActiveTheme.SelectionBoxCol;
 						if (controller.IsMovingSelection)
@@ -789,7 +791,7 @@ namespace DLS.Graphics
 		// Wire should be highlighted if mouse is over it or if in edit mode
 		static bool ShouldHighlightWire(WireInstance wire)
 		{
-			if (InteractionState.MouseIsOverUI) return false;
+			if (InteractionState.MouseIsOverUI || ImageExporter.IsCapturing) return false;
 			if (wire == controller.wireToEdit) return true;
 
 			if (InteractionState.ElementUnderMousePrevFrame is WireInstance wireUnderMouse && wire == wireUnderMouse)

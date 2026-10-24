@@ -34,6 +34,7 @@ namespace DLS.Graphics
 			$"EXPRESSION     {shortcutTextCol}Ctrl+Shift+G",
 			$"ADD NOTE       {shortcutTextCol}Ctrl+Shift+N",
 			$"TIMING DIAGRAM {shortcutTextCol}Ctrl+Shift+W",
+			$"EXPORT IMAGE   {shortcutTextCol}Ctrl+E",
 			$"LIBRARY        {shortcutTextCol}Ctrl+L",
 			$"PREFS          {shortcutTextCol}Ctrl+P",
 			$"QUIT           {shortcutTextCol}Ctrl+Q"
@@ -50,9 +51,10 @@ namespace DLS.Graphics
 		const int ExpressionButtonIndex = 8;
 		const int AddNoteButtonIndex = 9;
 		const int TimingDiagramButtonIndex = 10;
-		const int LibraryButtonIndex = 11;
-		const int OptionsButtonIndex = 12;
-		const int QuitButtonIndex = 13;
+		const int ExportImageButtonIndex = 11;
+		const int LibraryButtonIndex = 12;
+		const int OptionsButtonIndex = 13;
+		const int QuitButtonIndex = 14;
 
 		// ---- State ----
 		static float scrollX;
@@ -104,7 +106,7 @@ namespace DLS.Graphics
 			{
 				for (int i = menuButtonNames.Length - 1; i >= 0; i--)
 				{
-					bool buttonEnabled = MenuButtonsAndShortcutsEnabled || i is QuitButtonIndex or OptionsButtonIndex or TimingDiagramButtonIndex;
+					bool buttonEnabled = MenuButtonsAndShortcutsEnabled || i is QuitButtonIndex or OptionsButtonIndex or TimingDiagramButtonIndex or ExportImageButtonIndex;
 					string text = menuButtonNames[i];
 					// Left-aligned so the names and their (padded) shortcut hints line up in columns
 					if (UI.Button(text, theme, pos, size, buttonEnabled, false, false, Anchor.BottomLeft, true, 0.5f))
@@ -146,6 +148,7 @@ namespace DLS.Graphics
 				else if (i == ExpressionButtonIndex) ExpressionMenu.Open();
 				else if (i == AddNoteButtonIndex) StartPlacingNote();
 				else if (i == TimingDiagramButtonIndex) TimingDiagramPanel.Toggle();
+				else if (i == ExportImageButtonIndex) ExportImageMenu.Open();
 				else if (i == LibraryButtonIndex) OpenLibraryMenu();
 				else if (i == OptionsButtonIndex) OpenPreferencesMenu();
 				else if (i == QuitButtonIndex) ExitToMainMenu();
@@ -467,6 +470,8 @@ namespace DLS.Graphics
 
 			// Also available while viewing a subchip: the panel keeps showing the edited chip's probes
 			if (KeyboardShortcuts.TimingDiagramShortcutTriggered) TimingDiagramPanel.Toggle();
+			// Read-only, so also available while viewing a subchip (exports the chip being viewed)
+			if (KeyboardShortcuts.ExportImageShortcutTriggered) ExportImageMenu.Open();
 			if (KeyboardShortcuts.PreferencesShortcutTriggered) OpenPreferencesMenu();
 			if (KeyboardShortcuts.QuitToMainMenuShortcutTriggered) ExitToMainMenu();
 		}

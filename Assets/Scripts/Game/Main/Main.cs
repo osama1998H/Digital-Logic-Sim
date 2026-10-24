@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using DLS.Description;
+using DLS.Game.Export;
 using DLS.Game.Probes;
 using DLS.Graphics;
 using DLS.SaveSystem;
@@ -33,14 +34,16 @@ namespace DLS.Game
 		{
 			if (UIDrawer.ActiveMenu != UIDrawer.MenuType.MainMenu)
 			{
-				CameraController.Update();
+				// While exporting an image the camera is held on the export framing, and the UI is hidden (it would otherwise appear in the image)
+				if (ImageExporter.IsCapturing) InteractionState.MouseIsOverUI = true;
+				else CameraController.Update();
 				ActiveProject.Update();
 
 				InteractionState.ClearFrame();
 				WorldDrawer.DrawWorld(ActiveProject);
 			}
 
-			UIDrawer.Draw();
+			if (!ImageExporter.IsCapturing) UIDrawer.Draw();
 
 			HandleGlobalInput();
 		}

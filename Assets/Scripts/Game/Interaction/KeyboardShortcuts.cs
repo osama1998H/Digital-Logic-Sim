@@ -25,6 +25,7 @@ namespace DLS.Game
 		public static bool ExpressionShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.G);
 		public static bool AddNoteShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.N);
 		public static bool TimingDiagramShortcutTriggered => CtrlShiftShortcutTriggered(KeyCode.W);
+		public static bool ExportImageShortcutTriggered => CtrlShortcutTriggered(KeyCode.E);
 
 
 		// ---- Misc shortcuts ----

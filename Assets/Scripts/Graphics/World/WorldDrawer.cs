@@ -1,4 +1,5 @@
 using DLS.Game;
+using DLS.Game.Export;
 using Seb.Vis;
 using UnityEngine;
 
@@ -23,6 +24,12 @@ namespace DLS.Graphics
 
 		public static void DrawGridIfActive(Color col)
 		{
+			if (ImageExporter.IsCapturing)
+			{
+				if (ImageExporter.Options.ShowGrid) DevSceneDrawer.DrawGrid(col);
+				return;
+			}
+
 			bool isSnapping = KeyboardShortcuts.SnapModeHeld && Project.ActiveProject.controller.IsPlacingOrMovingElementOrCreatingWire;
 
 			if (Project.ActiveProject.ShowGrid || isSnapping)

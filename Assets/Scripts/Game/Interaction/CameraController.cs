@@ -217,6 +217,26 @@ namespace DLS.Game
 		// Calculate view params to fit given chip into screen (or as much as possible within max zoom setting)
 		public static ViewState GetViewForChip(DevChipInstance viewedChip)
 		{
+			Bounds2D bounds = GetChipBounds(viewedChip);
+
+			ViewState view = new();
+			if (Mathf.Max(bounds.Size.x, bounds.Size.y) < DrawSettings.GridSize) return view;
+
+			// Set cam orthoSize to fit contents of chip on screen
+			view.OrthoSize = Mathf.Max(bounds.Height, bounds.Width * 9 / 16f) * 0.5f;
+			view.OrthoSize += view.OrthoSize * 0.1f; // Padding
+			view.OrthoSize = Mathf.Clamp(view.OrthoSize, zoomRange.x, zoomRange.y);
+
+			// Move cam down slightly from bounds centre to account for bottom region of screen blocked by chip bar
+			const float uiScreenHeight = UI.Width * 9 / 16f;
+			float bottomBarWorldHeight = BottomBarUI.barHeight / uiScreenHeight * view.OrthoSize * 2;
+			view.Pos = bounds.Centre + Vector2.down * bottomBarWorldHeight / 2;
+			return view;
+		}
+
+		// Bounds of the chip's elements and wire points (empty bounds if the chip has no elements)
+		public static Bounds2D GetChipBounds(DevChipInstance viewedChip)
+		{
 			Bounds2D bounds = Bounds2D.CreateEmpty();
 			foreach (IMoveable element in viewedChip.Elements)
 			{
@@ -237,19 +257,20 @@ namespace DLS.Game
 				}
 			}
 
-			ViewState view = new();
-			if (Mathf.Max(bounds.Size.x, bounds.Size.y) < DrawSettings.GridSize) return view;
+			return bounds;
+		}
 
-			// Set cam orthoSize to fit contents of chip on screen
-			view.OrthoSize = Mathf.Max(bounds.Height, bounds.Width * 9 / 16f) * 0.5f;
-			view.OrthoSize += view.OrthoSize * 0.1f; // Padding
-			view.OrthoSize = Mathf.Clamp(view.OrthoSize, zoomRange.x, zoomRange.y);
+		// A copy of the current view (the active view object is shared with the per-chip lookup, so it must not be handed out)
+		public static ViewState CaptureView() => new() { OrthoSize = activeView.OrthoSize, Pos = activeView.Pos };
 
-			// Move cam down slightly from bounds centre to account for bottom region of screen blocked by chip bar
-			const float uiScreenHeight = UI.Width * 9 / 16f;
-			float bottomBarWorldHeight = BottomBarUI.barHeight / uiScreenHeight * view.OrthoSize * 2;
-			view.Pos = bounds.Centre + Vector2.down * bottomBarWorldHeight / 2;
-			return view;
+		public static void RestoreView(ViewState v) => SetView(v.Pos, v.OrthoSize);
+
+		// Sets the view without the zoom limits (an image export may need to zoom out further than the user can)
+		public static void SetView(Vector2 pos, float orthoSize)
+		{
+			activeView.Pos = pos;
+			activeView.OrthoSize = orthoSize;
+			UpdateCameraState();
 		}
 
 		public static void NotifyChipNameChanged(string nameNew)

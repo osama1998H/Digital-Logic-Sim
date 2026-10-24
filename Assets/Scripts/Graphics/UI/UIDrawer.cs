@@ -28,7 +28,8 @@ namespace DLS.Graphics
 			TruthTable,
 			TestBench,
 			Expression,
-			NoteEdit
+			NoteEdit,
+			ExportImage
 		}
 
 		static MenuType activeMenuOld;
@@ -89,6 +90,7 @@ namespace DLS.Graphics
 			else if (menuToDraw == MenuType.TestBench) TestBenchMenu.DrawMenu();
 			else if (menuToDraw == MenuType.Expression) ExpressionMenu.DrawMenu();
 			else if (menuToDraw == MenuType.NoteEdit) NoteEditMenu.DrawMenu();
+			else if (menuToDraw == MenuType.ExportImage) ExportImageMenu.DrawMenu();
 			else
 			{
 				bool showSimPausedBanner = project.simPaused;
@@ -101,6 +103,7 @@ namespace DLS.Graphics
 			Simulator.cacheCreationSuspended = aMenuIsOpen; // Cancel current caching process (and don't start new ones) while a menu is open
 
 			ContextMenu.Update();
+			StatusBanner.Draw(); // last, so it is on top
 		}
 
 		public static bool InInputBlockingMenu() => !(ActiveMenu is MenuType.None or MenuType.BottomBarMenuPopup or MenuType.ChipCustomization);
@@ -133,6 +136,7 @@ namespace DLS.Graphics
 				else if (ActiveMenu == MenuType.TestBench) TestBenchMenu.OnMenuOpened();
 				else if (ActiveMenu == MenuType.Expression) ExpressionMenu.OnMenuOpened();
 				else if (ActiveMenu == MenuType.NoteEdit) NoteEditMenu.OnMenuOpened();
+				else if (ActiveMenu == MenuType.ExportImage) ExportImageMenu.OnMenuOpened();
 
 				if (InInputBlockingMenu() && Project.ActiveProject != null && Project.ActiveProject.controller != null)
 				{
@@ -169,6 +173,7 @@ namespace DLS.Graphics
 			SearchPopup.Reset();
 			TimingDiagramPanel.Reset();
 			NoteEditMenu.Reset();
+			StatusBanner.Reset();
 		}
 	}
 }
